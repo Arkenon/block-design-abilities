@@ -1343,6 +1343,256 @@ function block_design_abilities_list_patterns(array $input = array()): array
 }
 
 
+add_action('wp_abilities_api_init', 'block_design_abilities_register_get_pattern_ability');
+
+function block_design_abilities_register_get_pattern_ability()
+{
+    wp_register_ability(
+        'block-design-abilities/get-pattern',
+        array(
+            'label'       => __('Get Pattern', 'block-design-abilities'),
+            'description' => __('Retrieves a single block pattern and returns its parsed block array. For database patterns (source: "database"), provide post_id. For registry patterns (source: "registry"), provide slug (name). Only database patterns can be updated with update-pattern — registry patterns are read-only theme/plugin files.', 'block-design-abilities'),
+            'category'    => 'block-design-abilities',
+
+            'input_schema' => array(
+                'type'       => 'object',
+                'required'   => array('source'),
+                'properties' => array(
+
+                    'source' => array(
+                        'type'        => 'string',
+                        'enum'        => array('registry', 'database'),
+                        'description' => __('"registry" to fetch a theme/plugin pattern by slug. "database" to fetch a user-created wp_block pattern by post_id.', 'block-design-abilities'),
+                    ),
+
+                    'slug' => array(
+                        'type'        => 'string',
+                        'description' => __('Required when source is "registry". The pattern name/slug (e.g. "mytheme/hero"). Obtain from list-patterns.', 'block-design-abilities'),
+                    ),
+
+                    'post_id' => array(
+                        'type'        => 'integer',
+                        'description' => __('Required when source is "database". The wp_block post ID. Obtain from list-patterns.', 'block-design-abilities'),
+                    ),
+
+                ),
+            ),
+
+            'output_schema' => array(
+                'type'       => 'object',
+                'properties' => array(
+                    'success'     => array('type' => 'boolean'),
+                    'source'      => array('type' => 'string', 'description' => __('"registry" or "database".', 'block-design-abilities')),
+                    'post_id'     => array('type' => 'integer', 'description' => __('Only present for database patterns. Use this when calling update-pattern.', 'block-design-abilities')),
+                    'slug'        => array('type' => 'string',  'description' => __('Pattern slug/name.', 'block-design-abilities')),
+                    'title'       => array('type' => 'string'),
+                    'sync_status' => array('type' => 'string',  'description' => __('"synced" or "unsynced". Only for database patterns.', 'block-design-abilities')),
+                    'is_editable' => array('type' => 'boolean', 'description' => __('Whether this pattern can be updated. True only for database patterns.', 'block-design-abilities')),
+                    'raw_content' => array('type' => 'string',  'description' => __('Raw serialized block markup. For reference only.', 'block-design-abilities')),
+                    'blocks'      => array(
+                        'type'        => 'array',
+                        'description' => __('Parsed block array. For database patterns, edit this and pass to update-pattern. For registry patterns, this is read-only.', 'block-design-abilities'),
+                        'items'       => array('type' => 'object'),
+                    ),
+                    'block_count' => array('type' => 'integer'),
+                    'error'       => array('type' => 'string'),
+                ),
+            ),
+
+            'execute_callback'    => 'block_design_abilities_get_pattern',
+            'permission_callback' => function () {
+                return current_user_can('edit_posts');
+            },
+            'meta' => array('mcp' => array('public' => true)),
+        )
+    );
+}
+
+function block_design_abilities_get_pattern(array $input): array
+{
+    $source = $input['source'];
+
+    // --- Registry pattern ---
+    if ($source === 'registry') {
+        if (empty($input['slug'])) {
+            return array('success' => false, 'error' => __('slug is required when source is "registry".', 'block-design-abilities'));
+        }
+
+        $slug    = sanitize_text_field($input['slug']);
+        $pattern = WP_Block_Patterns_Registry::get_instance()->get_registered($slug);
+
+        if (! $pattern) {
+            return array(
+                'success' => false,
+                'error'   => sprintf(__('Registry pattern "%s" not found. Use list-patterns to see available patterns.', 'block-design-abilities'), $slug),
+            );
+        }
+
+        $raw_content   = $pattern['content'];
+        $parsed_blocks = array_values(array_filter(parse_blocks($raw_content), fn($b) => ! empty($b['blockName'])));
+
+        return array(
+            'success'     => true,
+            'source'      => 'registry',
+            'slug'        => $pattern['name'],
+            'title'       => $pattern['title'],
+            'is_editable' => false,
+            'raw_content' => $raw_content,
+            'blocks'      => $parsed_blocks,
+            'block_count' => count($parsed_blocks),
+        );
+    }
+
+    // --- Database pattern ---
+    if ($source === 'database') {
+        if (empty($input['post_id'])) {
+            return array('success' => false, 'error' => __('post_id is required when source is "database".', 'block-design-abilities'));
+        }
+
+        $post_id = absint($input['post_id']);
+        $post    = get_post($post_id);
+
+        if (! $post || $post->post_type !== 'wp_block') {
+            return array(
+                'success' => false,
+                'error'   => sprintf(__('Database pattern with post_id %d not found.', 'block-design-abilities'), $post_id),
+            );
+        }
+
+        $raw_content   = $post->post_content;
+        $parsed_blocks = array_values(array_filter(parse_blocks($raw_content), fn($b) => ! empty($b['blockName'])));
+
+        $sync_meta   = get_post_meta($post->ID, 'wp_pattern_sync_status', true);
+        $sync_status = ($sync_meta === 'unsynced') ? 'unsynced' : 'synced';
+
+        return array(
+            'success'     => true,
+            'source'      => 'database',
+            'post_id'     => $post->ID,
+            'slug'        => $post->post_name,
+            'title'       => $post->post_title,
+            'sync_status' => $sync_status,
+            'is_editable' => true,
+            'raw_content' => $raw_content,
+            'blocks'      => $parsed_blocks,
+            'block_count' => count($parsed_blocks),
+        );
+    }
+
+    return array('success' => false, 'error' => __('Invalid source. Must be "registry" or "database".', 'block-design-abilities'));
+}
+
+
+add_action('wp_abilities_api_init', 'block_design_abilities_register_update_pattern_ability');
+
+function block_design_abilities_register_update_pattern_ability()
+{
+    wp_register_ability(
+        'block-design-abilities/update-pattern',
+        array(
+            'label'       => __('Update Pattern', 'block-design-abilities'),
+            'description' => __('Updates an existing database pattern (wp_block post type). Only user-created database patterns can be updated — registry patterns from themes/plugins are read-only files. Always call get-pattern first (source: "database") to retrieve the current block structure, edit it, then call this ability with the modified blocks array.', 'block-design-abilities'),
+            'category'    => 'block-design-abilities',
+
+            'input_schema' => array(
+                'type'     => 'object',
+                'required' => array('post_id', 'blocks'),
+                'properties' => array(
+
+                    'post_id' => array(
+                        'type'        => 'integer',
+                        'description' => __('The wp_block post ID of the pattern to update. Obtain from list-patterns or get-pattern.', 'my-plugin'),
+                    ),
+
+                    'blocks' => array(
+                        'type'        => 'array',
+                        'description' => __('The full updated block array. Replaces existing content entirely. Use blocks from get-pattern as your starting point.', 'my-plugin'),
+                        'items'       => array('type' => 'object'),
+                    ),
+
+                    'title' => array(
+                        'type'        => 'string',
+                        'description' => __('Optional. If provided, updates the pattern title as well.', 'my-plugin'),
+                    ),
+
+                ),
+            ),
+
+            'output_schema' => array(
+                'type'       => 'object',
+                'properties' => array(
+                    'success'            => array('type' => 'boolean'),
+                    'post_id'            => array('type' => 'integer'),
+                    'title'              => array('type' => 'string'),
+                    'sync_status'        => array('type' => 'string'),
+                    'previous_content'   => array('type' => 'string', 'description' => __('Raw content before update, for rollback reference.', 'my-plugin')),
+                    'serialized_content' => array('type' => 'string', 'description' => __('New serialized content saved to DB.', 'my-plugin')),
+                    'error'              => array('type' => 'string'),
+                ),
+            ),
+
+            'execute_callback'    => 'myplugin_update_pattern',
+            'permission_callback' => function () {
+                return current_user_can('edit_posts');
+            },
+            'meta' => array('show_in_rest' => true),
+        )
+    );
+}
+
+function myplugin_update_pattern(array $input): array
+{
+    $post_id = absint($input['post_id']);
+    $blocks  = $input['blocks'];
+
+    $post = get_post($post_id);
+
+    if (! $post || $post->post_type !== 'wp_block') {
+        return array(
+            'success' => false,
+            'error'   => sprintf(__('Database pattern with post_id %d not found. Only wp_block posts can be updated. Registry patterns are read-only.', 'my-plugin'), $post_id),
+        );
+    }
+
+    $previous_content = $post->post_content;
+
+    $serialized_content = '';
+    foreach ($blocks as $block) {
+        $serialized_content .= serialize_block($block);
+    }
+
+    if (empty(trim($serialized_content))) {
+        return array('success' => false, 'error' => __('Block serialization failed.', 'my-plugin'));
+    }
+
+    $update_args = array(
+        'ID'           => $post_id,
+        'post_content' => $serialized_content,
+    );
+
+    if (! empty($input['title'])) {
+        $update_args['post_title'] = sanitize_text_field($input['title']);
+    }
+
+    $result = wp_update_post($update_args);
+
+    if (is_wp_error($result)) {
+        return array('success' => false, 'error' => $result->get_error_message());
+    }
+
+    $sync_meta   = get_post_meta($post_id, 'wp_pattern_sync_status', true);
+    $sync_status = ($sync_meta === 'unsynced') ? 'unsynced' : 'synced';
+
+    return array(
+        'success'            => true,
+        'post_id'            => $post_id,
+        'title'              => get_post($post_id)->post_title,
+        'sync_status'        => $sync_status,
+        'previous_content'   => $previous_content,
+        'serialized_content' => $serialized_content,
+    );
+}
+
 add_action('wp_abilities_api_init', 'block_design_abilities_register_duplicate_pattern_ability');
 
 function block_design_abilities_register_duplicate_pattern_ability()
