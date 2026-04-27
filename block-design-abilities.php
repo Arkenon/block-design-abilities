@@ -1535,7 +1535,7 @@ function block_design_abilities_register_update_pattern_ability()
             'permission_callback' => function () {
                 return current_user_can('edit_posts');
             },
-            'meta' => array('show_in_rest' => true),
+            'meta' => array('mcp' => array('public' => true)),
         )
     );
 }
