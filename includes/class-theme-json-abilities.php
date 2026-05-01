@@ -1,19 +1,50 @@
 <?php
+defined('ABSPATH') || exit;
 
+/**
+ * Block Design Abilities – Theme JSON yetenekleri.
+ *
+ * WordPress Abilities API'ye tema tasarım token'larını okumak için
+ * bir yetenek kaydeder: get-theme-json.
+ *
+ * Döndürülen bölümler:
+ *  - settings       : Renk, tipografi, aralık preset'leri (wp_get_global_settings).
+ *  - styles         : Global CSS değerleri (wp_get_global_styles).
+ *  - user_overrides : Site Editor'da yapılan kullanıcı özelleştirmeleri.
+ *  - theme_info     : Tema meta verisi (ad, versiyon, blok tema bayrağı vb.).
+ *
+ * İzin gereksinimi: edit_theme_options.
+ *
+ * @package Block_Design_Abilities
+ * @since   1.0.0
+ */
 class Block_Design_Abilities_Theme_Json
 {
+    /**
+     * Sınıfı başlatır; wp_abilities_api_init kancasını dinleyen
+     * yetenek kayıt metodunu bağlar.
+     */
     public function __construct()
     {
         add_action('wp_abilities_api_init', array($this, 'register_get_theme_json_ability'));
     }
 
+    /**
+     * 'block-design-abilities/get-theme-json' yeteneğini Abilities API'ye kaydeder.
+     *
+     * Yetenek; origin ("all" | "base") ve sections (isteğe bağlı dizi)
+     * parametrelerini kabul eder. Template veya pattern düzenlemeden önce
+     * mevcut preset slug'larını öğrenmek için kullanılır.
+     *
+     * @return void
+     */
     public function register_get_theme_json_ability()
     {
         wp_register_ability(
             'block-design-abilities/get-theme-json',
             array(
                 'label'       => __('Get Theme JSON', 'block-design-abilities'),
-                'description' => __('Returns the active theme\'s design configuration from theme.json — including color palettes, typography, spacing, and style overrides. Returns both the merged final data (theme file + user customizations) and the user-only overrides saved to the database via the Site Editor. Use this to understand available design tokens (colors, font sizes, spacing scale) before editing templates or patterns.', 'block-design-abilities'),
+                'description' => __('Returns the active theme\'s design tokens from theme.json (colors, typography, spacing). Use this before editing templates or patterns to know available preset slugs for block attributes.', 'block-design-abilities'),
                 'category'    => 'block-design-abilities',
 
                 'input_schema' => array(
@@ -23,7 +54,7 @@ class Block_Design_Abilities_Theme_Json
                         'origin' => array(
                             'type'        => 'string',
                             'enum'        => array('all', 'base'),
-                            'description' => __('Which data to return. "all" (default) returns theme file + user customizations merged. "base" returns only the theme file data, ignoring Site Editor overrides.', 'block-design-abilities'),
+                            'description' => __('"all" (default): theme + user customizations merged. "base": theme file only.', 'block-design-abilities'),
                         ),
 
                         'sections' => array(
@@ -32,7 +63,7 @@ class Block_Design_Abilities_Theme_Json
                                 'type' => 'string',
                                 'enum' => array('settings', 'styles', 'user_overrides', 'theme_info'),
                             ),
-                            'description' => __('Which sections to include in the response. Omit to get all sections. Options: "settings" (color palettes, font sizes, spacing), "styles" (global CSS values), "user_overrides" (only what was changed in Site Editor), "theme_info" (theme name, version, etc).', 'block-design-abilities'),
+                            'description' => __('Sections to return. Omit for all. "settings": color/font/spacing tokens. "styles": global CSS. "user_overrides": Site Editor changes. "theme_info": theme metadata.', 'block-design-abilities'),
                         ),
 
                     ),
@@ -41,50 +72,12 @@ class Block_Design_Abilities_Theme_Json
                 'output_schema' => array(
                     'type'       => 'object',
                     'properties' => array(
-
-                        'success' => array(
-                            'type'        => 'boolean',
-                            'description' => __('Whether the retrieval was successful.', 'block-design-abilities'),
-                        ),
-
-                        'theme_info' => array(
-                            'type'        => 'object',
-                            'description' => __('Basic information about the active theme.', 'block-design-abilities'),
-                            'properties'  => array(
-                                'name'       => array('type' => 'string', 'description' => __('Theme display name.', 'block-design-abilities')),
-                                'stylesheet' => array('type' => 'string', 'description' => __('Theme slug (stylesheet).', 'block-design-abilities')),
-                                'version'    => array('type' => 'string', 'description' => __('Theme version.', 'block-design-abilities')),
-                                'is_block_theme' => array('type' => 'boolean', 'description' => __('Whether this is a block (FSE) theme.', 'block-design-abilities')),
-                                'has_theme_json' => array('type' => 'boolean', 'description' => __('Whether the theme has a theme.json file.', 'block-design-abilities')),
-                                'has_user_overrides' => array('type' => 'boolean', 'description' => __('Whether the user has customized global styles via the Site Editor.', 'block-design-abilities')),
-                            ),
-                        ),
-
-                        'settings' => array(
-                            'type'        => 'object',
-                            'description' => __('Merged theme settings (core + theme + user). Contains design tokens: color.palette, typography.fontSizes, typography.fontFamilies, spacing.spacingSizes, etc. Use these slugs when setting block attributes.', 'block-design-abilities'),
-                        ),
-
-                        'styles' => array(
-                            'type'        => 'object',
-                            'description' => __('Merged global styles (core + theme + user). Contains CSS values for color, typography, spacing applied globally and per block.', 'block-design-abilities'),
-                        ),
-
-                        'user_overrides' => array(
-                            'type'        => 'object',
-                            'description' => __('Only the customizations the user has made via the Site Editor (stored in DB as "Custom Styles"). Empty if no customizations have been made. This is the raw JSON from the wp_global_styles post.', 'block-design-abilities'),
-                            'properties'  => array(
-                                'post_id'  => array('type' => 'integer', 'description' => __('DB post ID of the Custom Styles record.', 'block-design-abilities')),
-                                'settings' => array('type' => 'object', 'description' => __('User-overridden settings only.', 'block-design-abilities')),
-                                'styles'   => array('type' => 'object', 'description' => __('User-overridden styles only.', 'block-design-abilities')),
-                            ),
-                        ),
-
-                        'error' => array(
-                            'type'        => 'string',
-                            'description' => __('Error message if success is false.', 'block-design-abilities'),
-                        ),
-
+                        'success'        => array('type' => 'boolean'),
+                        'theme_info'     => array('type' => 'object'),
+                        'settings'       => array('type' => 'object'),
+                        'styles'         => array('type' => 'object'),
+                        'user_overrides' => array('type' => 'object'),
+                        'error'          => array('type' => 'string'),
                     ),
                 ),
 
@@ -97,6 +90,38 @@ class Block_Design_Abilities_Theme_Json
         );
     }
 
+    /**
+     * Aktif temanın theme.json tasarım token'larını döndürür.
+     *
+     * - origin="all"  : wp_get_global_settings/styles ile tema + kullanıcı
+     *                    özelleştirmeleri birleştirilmiş olarak döner.
+     * - origin="base" : Yalnızca tema dosyasındaki değerler döner.
+     *
+     * sections belirtilmezse tüm bölümler (settings, styles,
+     * user_overrides, theme_info) dahil edilir.
+     * user_overrides, Site Editor'da herhangi bir değişiklik yapılmamışsa null döner.
+     *
+     * @param array{
+     *     origin?:   string,
+     *     sections?: string[],
+     * } $input Yetenek giriş parametreleri.
+     *
+     * @return array{
+     *     success:          bool,
+     *     theme_info?:      array{
+     *         name:               string,
+     *         stylesheet:         string,
+     *         version:            string,
+     *         is_block_theme:     bool,
+     *         has_theme_json:     bool,
+     *         has_user_overrides: bool,
+     *     },
+     *     settings?:        array<string, mixed>,
+     *     styles?:          array<string, mixed>,
+     *     user_overrides?:  array{post_id: int, settings: array<string, mixed>, styles: array<string, mixed>}|null,
+     *     error?:           string,
+     * }
+     */
     public function get_theme_json(array $input = array()): array
     {
         $origin   = isset($input['origin']) && $input['origin'] === 'base' ? 'base' : 'all';

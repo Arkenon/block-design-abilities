@@ -37,6 +37,7 @@
 // post_id absent → wp_insert_post() → saved to DB for the first time
 // This template's source is now "custom" ✅
 
+defined('ABSPATH') || exit;
 
 require_once plugin_dir_path(__FILE__) . 'includes/class-template-abilities.php';
 require_once plugin_dir_path(__FILE__) . 'includes/class-post-abilities.php';

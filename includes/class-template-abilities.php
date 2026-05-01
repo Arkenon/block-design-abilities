@@ -1,7 +1,27 @@
 <?php
+defined('ABSPATH') || exit;
 
+/**
+ * Block Design Abilities – Template yetenekleri.
+ *
+ * WordPress Abilities API'ye blok tema şablonu yönetimi için üç yetenek kaydeder:
+ * list-templates, get-template, add-or-update-template.
+ *
+ * Şablonlar iki kaynaktan gelebilir:
+ *  - Tema dosyası : Henüz veritabanına kaydedilmemiş, slug ile erişilir.
+ *  - Veritabanı   : wp_template CPT olarak kayıtlı, post_id ile güncellenir.
+ *
+ * İzin gereksinimi: edit_theme_options.
+ *
+ * @package Block_Design_Abilities
+ * @since   1.0.0
+ */
 class Block_Design_Abilities_Templates
 {
+    /**
+     * Sınıfı başlatır; wp_abilities_api_init kancasını dinleyen tüm
+     * yetenek kayıt metodlarını bağlar.
+     */
     public function __construct()
     {
         add_action('wp_abilities_api_init', array($this, 'register_list_templates_ability'));
@@ -9,13 +29,21 @@ class Block_Design_Abilities_Templates
         add_action('wp_abilities_api_init', array($this, 'register_update_template_ability'));
     }
 
+    /**
+     * 'block-design-abilities/list-templates' yeteneğini Abilities API'ye kaydeder.
+     *
+     * Yetenek parametre almaz; aktif temanın tüm şablonlarını slug, title
+     * ve (varsa) post_id bilgileriyle döndürür.
+     *
+     * @return void
+     */
     public function register_list_templates_ability()
     {
         wp_register_ability(
             'block-design-abilities/list-templates',
             array(
                 'label'       => __('List Templates', 'block-design-abilities'),
-                'description' => __('Returns all available templates for the active theme — including both theme file templates (from the templates/ directory) and database-customized templates. Use this to discover template slugs. Then call get-template with the desired slug to retrieve its full block structure. The "source" field tells you whether a template comes from the theme files or has been customized and saved to the database.', 'block-design-abilities'),
+                'description' => __('Returns all available templates for the active theme.', 'block-design-abilities'),
                 'category'    => 'block-design-abilities',
 
                 'input_schema' => array(
@@ -26,72 +54,33 @@ class Block_Design_Abilities_Templates
                 'output_schema' => array(
                     'type'       => 'object',
                     'properties' => array(
-
-                        'success' => array(
-                            'type'        => 'boolean',
-                            'description' => __('Whether the retrieval was successful.', 'block-design-abilities'),
-                        ),
-
                         'theme' => array(
                             'type'        => 'string',
                             'description' => __('The active theme slug.', 'block-design-abilities'),
                         ),
-
                         'templates' => array(
                             'type'        => 'array',
-                            'description' => __('All available templates. Use slug when calling get-template.', 'block-design-abilities'),
+                            'description' => __('All available templates.', 'block-design-abilities'),
                             'items'       => array(
                                 'type'       => 'object',
                                 'properties' => array(
-
                                     'slug' => array(
                                         'type'        => 'string',
                                         'description' => __('Unique slug of the template (e.g. "front-page", "archive", "single"). Use this when calling get-template.', 'block-design-abilities'),
                                     ),
-
                                     'title' => array(
                                         'type'        => 'string',
                                         'description' => __('Human-readable title of the template.', 'block-design-abilities'),
-                                    ),
-
-                                    'description' => array(
-                                        'type'        => 'string',
-                                        'description' => __('Short description of the template purpose.', 'block-design-abilities'),
-                                    ),
-
-                                    'source' => array(
-                                        'type'        => 'string',
-                                        'enum'        => array('theme', 'custom', 'plugin'),
-                                        'description' => __('"theme" = unmodified theme file template. "custom" = modified and saved to database. "plugin" = registered by a plugin. Only "custom" templates have a post_id.', 'block-design-abilities'),
-                                    ),
-
+                                    ),                                
                                     'post_id' => array(
                                         'type'        => 'integer',
-                                        'description' => __('Database post ID. Only present when source is "custom". Use this when calling update-template.', 'block-design-abilities'),
-                                    ),
-
-                                    'is_custom' => array(
-                                        'type'        => 'boolean',
-                                        'description' => __('Whether this is a custom (user-created) template rather than a standard theme template.', 'block-design-abilities'),
-                                    ),
-
+                                        'description' => __('Database post ID. (If the template is saved to the database) Use this when calling update-template.', 'block-design-abilities'),
+                                    )
                                 ),
                             ),
-                        ),
-
-                        'total' => array(
-                            'type'        => 'integer',
-                            'description' => __('Total number of templates found.', 'block-design-abilities'),
-                        ),
-
-                        'error' => array(
-                            'type'        => 'string',
-                            'description' => __('Error message if success is false.', 'block-design-abilities'),
-                        ),
-
+                        )
                     ),
                 ),
-
                 'execute_callback'    => array($this, 'list_templates'),
                 'permission_callback' => function () {
                     return current_user_can('edit_theme_options');
@@ -101,12 +90,24 @@ class Block_Design_Abilities_Templates
         );
     }
 
+    /**
+     * Aktif temanın tüm blok şablonlarını listeler.
+     *
+     * get_block_templates() fonksiyonu mevcut değilse boş dizi döner.
+     * Veritabanına kaydedilmiş şablonlarda post_id alanı bulunur; yalnızca
+     * tema dosyasından okunanlar için bu alan eklenmez.
+     * Sonuç slug değerine göre alfabetik sıralanır.
+     *
+     * @return array{
+     *     theme?:     string,
+     *     templates:  array<int, array{slug: string, title: string, post_id?: int}>,
+     * }
+     */
     public function list_templates(): array
     {
         if (! function_exists('get_block_templates')) {
             return array(
-                'success' => false,
-                'error'   => __('get_block_templates() is not available. WordPress 5.9+ required.', 'block-design-abilities'),
+                'templates' => array(),
             );
         }
 
@@ -114,20 +115,15 @@ class Block_Design_Abilities_Templates
 
         if (empty($block_templates)) {
             return array(
-                'success'   => true,
                 'theme'     => get_stylesheet(),
                 'templates' => array(),
-                'total'     => 0,
             );
         }
 
         $templates = array_map(function ($tpl) {
             $item = array(
                 'slug'        => $tpl->slug,
-                'title'       => $tpl->title,
-                'description' => $tpl->description,
-                'source'      => $tpl->source,      // 'theme' | 'custom' | 'plugin'
-                'is_custom'   => $tpl->is_custom,
+                'title'       => $tpl->title
             );
 
             // post_id is only present for templates saved to the database
@@ -142,20 +138,27 @@ class Block_Design_Abilities_Templates
         usort($templates, fn($a, $b) => strcmp($a['slug'], $b['slug']));
 
         return array(
-            'success'   => true,
             'theme'     => get_stylesheet(),
             'templates' => $templates,
-            'total'     => count($templates),
         );
     }
 
+    /**
+     * 'block-design-abilities/get-template' yeteneğini Abilities API'ye kaydeder.
+     *
+     * Yetenek; slug (zorunlu) parametresini kabul eder ve şablonun
+     * ayrıştırılmış blok dizisini döndürür.
+     * Şablon bulunamazsa boş blok dizisi döner.
+     *
+     * @return void
+     */
     public function register_get_template_ability()
     {
         wp_register_ability(
             'block-design-abilities/get-template',
             array(
                 'label'       => __('Get Template', 'block-design-abilities'),
-                'description' => __('Retrieves a single block template by slug and returns its content as a parsed block array. Use list-templates to find available slugs first. After reviewing the blocks array, edit it and pass it to update-template.', 'block-design-abilities'),
+                'description' => __('Returns a template\'s block structure by slug. Use list-templates first to get slugs. Edit the returned blocks and pass them to update-template.', 'block-design-abilities'),
                 'category'    => 'block-design-abilities',
 
                 'input_schema' => array(
@@ -164,7 +167,7 @@ class Block_Design_Abilities_Templates
                     'properties' => array(
                         'slug' => array(
                             'type'        => 'string',
-                            'description' => __('Template slug (e.g. "front-page", "archive"). Obtain this from list-templates.', 'block-design-abilities'),
+                            'description' => __('Template slug from list-templates.', 'block-design-abilities'),
                         ),
                     ),
                 ),
@@ -172,16 +175,10 @@ class Block_Design_Abilities_Templates
                 'output_schema' => array(
                     'type'       => 'object',
                     'properties' => array(
-                        'success'     => array('type' => 'boolean'),
                         'slug'        => array('type' => 'string'),
                         'title'       => array('type' => 'string'),
-                        'description' => array('type' => 'string'),
-                        'source'      => array('type' => 'string'),
                         'post_id'     => array('type' => 'integer'),
-                        'raw_content' => array('type' => 'string'),
-                        'blocks'      => array('type' => 'array', 'items' => array('type' => 'object')),
-                        'block_count' => array('type' => 'integer'),
-                        'error'       => array('type' => 'string'),
+                        'blocks'      => array('type' => 'array'),
                     ),
                 ),
 
@@ -194,6 +191,25 @@ class Block_Design_Abilities_Templates
         );
     }
 
+    /**
+     * Tek bir şablonu ayrıştırılmış blok dizisi olarak döndürür.
+     *
+     * Şablon ID'si "tema-slug//template-slug" formatında oluşturularak
+     * get_block_template() ile çekilir. İçerik parse_blocks() ile ayrıştırılır;
+     * blockName değeri boş olan düğümler sonuçtan çıkarılır.
+     * post_id, yalnızca şablon veritabanına kaydedilmişse döndürülür.
+     *
+     * @param array{
+     *     slug: string,
+     * } $input Yetenek giriş parametreleri.
+     *
+     * @return array{
+     *     slug?:    string,
+     *     title?:   string,
+     *     post_id?: int,
+     *     blocks:   array<int, array<string, mixed>>,
+     * }
+     */
     public function get_template(array $input): array
     {
         $slug = sanitize_title($input['slug']);
@@ -205,11 +221,7 @@ class Block_Design_Abilities_Templates
 
         if (! $template) {
             return array(
-                'success' => false,
-                'error'   => sprintf(
-                    __('Template "%s" not found. Use list-templates to see available templates.', 'block-design-abilities'),
-                    $slug
-                ),
+                'blocks' => array()
             );
         }
 
@@ -225,14 +237,9 @@ class Block_Design_Abilities_Templates
         );
 
         $result = array(
-            'success'     => true,
             'slug'        => $template->slug,
-            'title'       => $template->title,
-            'description' => $template->description,
-            'source'      => $template->source,
-            'raw_content' => $raw_content,
-            'blocks'      => $parsed_blocks,
-            'block_count' => count($parsed_blocks),
+            'title'       => $template->title,        
+            'blocks'      => $parsed_blocks        
         );
 
         // Only add post_id if the template has a DB record
@@ -243,61 +250,41 @@ class Block_Design_Abilities_Templates
         return $result;
     }
 
+    /**
+     * 'block-design-abilities/add-or-update-template' yeteneğini Abilities API'ye kaydeder.
+     *
+     * Yetenek; blocks (zorunlu), post_id veya slug (birini seçmeli)
+     * parametrelerini kabul eder. post_id ve slug aynı anda verilemez.
+     *
+     * @return void
+     */
     public function register_update_template_ability()
     {
         wp_register_ability(
-            'block-design-abilities/update-template',
+            'block-design-abilities/add-or-update-template',
             array(
-                'label'       => __('Update Template', 'block-design-abilities'),
-                'description' => __('Saves an updated block array to an existing WordPress template. Always call get-template first to retrieve the current block structure, make your edits, then call this with the modified blocks array and the post_id returned by get-template.', 'block-design-abilities'),
+                'label'       => __('Add or Update Template', 'block-design-abilities'),
+                'description' => __('Saves an updated block array to a template. Always call get-template first, edit the returned blocks, then pass them here with post_id or slug. Do not use both post_id and slug simultaneously.', 'block-design-abilities'),
                 'category'    => 'block-design-abilities',
 
                 'input_schema' => array(
                     'type'       => 'object',
-                    'required'   => array('post_id', 'blocks'),
+                    'required'   => array('blocks'),
                     'properties' => array(
 
                         'post_id' => array(
                             'type'        => 'integer',
-                            'description' => __('DB post ID of the template. Use this if the template has been customized before (source: "custom"). Returned by list-templates and get-template.', 'block-design-abilities'),
+                            'description' => __('DB post ID of the template. Update existing template if post_id is provided.', 'block-design-abilities'),
                         ),
 
                         'slug' => array(
                             'type'        => 'string',
-                            'description' => __('Template slug (e.g. "front-page"). Required when post_id is not available — i.e. when source is "theme" and the template has never been saved to DB. Returned by list-templates.', 'block-design-abilities'),
+                            'description' => __('Template slug. Use this to create (duplicate) new template from theme file.', 'block-design-abilities'),
                         ),
 
                         'blocks' => array(
                             'type'        => 'array',
-                            'description' => __('The full updated block array to save. This replaces the existing template content entirely. Structure is identical to the blocks returned by get-template.', 'block-design-abilities'),
-                            'items'       => array(
-                                'type'       => 'object',
-                                'required'   => array('blockName', 'attrs', 'innerBlocks', 'innerHTML', 'innerContent'),
-                                'properties' => array(
-                                    'blockName'    => array(
-                                        'type'        => 'string',
-                                        'description' => __('Block name (e.g. "core/group", "core/template-part").', 'block-design-abilities'),
-                                    ),
-                                    'attrs'        => array(
-                                        'type'        => 'object',
-                                        'description' => __('Block attributes as key-value pairs.', 'block-design-abilities'),
-                                    ),
-                                    'innerBlocks'  => array(
-                                        'type'        => 'array',
-                                        'description' => __('Nested child blocks.', 'block-design-abilities'),
-                                        'items'       => array('type' => 'object'),
-                                    ),
-                                    'innerHTML'    => array(
-                                        'type'        => 'string',
-                                        'description' => __('Raw HTML inside the block comment delimiters.', 'block-design-abilities'),
-                                    ),
-                                    'innerContent' => array(
-                                        'type'        => 'array',
-                                        'description' => __('Ordered list of string fragments and null markers.', 'block-design-abilities'),
-                                        'items'       => array(),
-                                    ),
-                                ),
-                            ),
+                            'description' => __('Full updated block array. Same structure as returned by get-template. Replaces template content entirely.', 'block-design-abilities')
                         ),
 
                     ),
@@ -306,30 +293,9 @@ class Block_Design_Abilities_Templates
                 'output_schema' => array(
                     'type'       => 'object',
                     'properties' => array(
-                        'success' => array(
-                            'type'        => 'boolean',
-                            'description' => __('Whether the update was successful.', 'block-design-abilities'),
-                        ),
-                        'post_id' => array(
-                            'type'        => 'integer',
-                            'description' => __('The updated template post ID.', 'block-design-abilities'),
-                        ),
-                        'post_name' => array(
-                            'type'        => 'string',
-                            'description' => __('The slug of the updated template.', 'block-design-abilities'),
-                        ),
-                        'previous_content' => array(
-                            'type'        => 'string',
-                            'description' => __('Raw block markup before the update, for rollback reference.', 'block-design-abilities'),
-                        ),
-                        'serialized_content' => array(
-                            'type'        => 'string',
-                            'description' => __('The new serialized block markup saved to the database.', 'block-design-abilities'),
-                        ),
-                        'error' => array(
-                            'type'        => 'string',
-                            'description' => __('Error message if success is false.', 'block-design-abilities'),
-                        ),
+                        'success'            => array('type' => 'boolean'),
+                        'error'              => array('type' => 'string'),
+                        'post_id'            => array('type' => 'integer'),
                     ),
                 ),
 
@@ -342,9 +308,38 @@ class Block_Design_Abilities_Templates
         );
     }
 
+    /**
+     * Bir şablonu kaydeder veya günceller.
+     *
+     * - post_id sağlanırsa: mevcut wp_template gönderisi wp_update_post() ile güncellenir.
+     * - slug sağlanırsa: tema dosyasındaki şablon ilk kez veritabanına kopyalanır
+     *   (wp_insert_post), böylece tema güncellemelerinden bağımsız bir DB kaydı oluşur.
+     * - Her iki parametre aynı anda verilirse hata döner.
+     * - Blok dizisi serialize_block() ile serileştirilir; boş sonuç hata döndürür.
+     *
+     * @param array{
+     *     blocks:   array<int, array<string, mixed>>,
+     *     post_id?: int,
+     *     slug?:    string,
+     * } $input Yetenek giriş parametreleri.
+     *
+     * @return array{
+     *     success:  bool,
+     *     post_id?: int,
+     *     error?:   string,
+     * }
+     */
     public function update_template(array $input): array
     {
         $blocks = $input['blocks'];
+
+        // Check if both post_id and slug are provided
+        if (! empty($input['post_id']) && ! empty($input['slug'])) {
+            return array(
+                'success' => false,
+                'error'   => __('Provide either post_id or slug, not both. Post_id for update, slug for create.', 'block-design-abilities'),
+            );
+        }
 
         // If post_id is provided, update directly
         // otherwise save to DB for the first time using slug (overrides the theme file)
@@ -433,10 +428,7 @@ class Block_Design_Abilities_Templates
 
         return array(
             'success'            => true,
-            'post_id'            => $post_id,
-            'slug'               => $input['slug'] ?? get_post($post_id)->post_name,
-            'previous_content'   => $previous_content,
-            'serialized_content' => $serialized_content,
+            'post_id'            => $post_id
         );
     }
 }

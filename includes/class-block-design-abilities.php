@@ -1,5 +1,6 @@
 <?php
 
+defined('ABSPATH') || exit;
 class Block_Design_Abilities
 {
     public function __construct()

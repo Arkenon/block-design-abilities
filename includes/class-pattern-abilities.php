@@ -1,7 +1,25 @@
 <?php
+defined('ABSPATH') || exit;
 
+/**
+ * Block Design Abilities – Pattern yetenekleri.
+ *
+ * WordPress Abilities API'ye pattern ile ilgili beş yetenek kaydeder:
+ * list-patterns, get-pattern, update-pattern, duplicate-pattern, create-pattern.
+ *
+ * Desteklenen kaynak türleri:
+ *  - registry : Tema/eklenti tarafından PHP ile kaydedilen, salt okunur pattern'ler.
+ *  - database  : wp_block CPT olarak veritabanında depolanan, düzenlenebilir pattern'ler.
+ *
+ * @package Block_Design_Abilities
+ * @since   1.0.0
+ */
 class Block_Design_Abilities_Patterns
 {
+    /**
+     * Sınıfı başlatır; wp_abilities_api_init kancasını dinleyen tüm
+     * yetenek kayıt metodlarını bağlar.
+     */
     public function __construct()
     {
         add_action('wp_abilities_api_init', array($this, 'register_list_patterns_ability'));
@@ -11,13 +29,21 @@ class Block_Design_Abilities_Patterns
         add_action('wp_abilities_api_init', array($this, 'register_create_pattern_ability'));
     }
 
+    /**
+     * 'block-design-abilities/list-patterns' yeteneğini Abilities API'ye kaydeder.
+     *
+     * Yetenek; source, category ve search parametrelerini kabul eder,
+     * sonuç olarak registry ve database pattern listelerini döndürür.
+     *
+     * @return void
+     */
     public function register_list_patterns_ability()
     {
         wp_register_ability(
             'block-design-abilities/list-patterns',
             array(
                 'label'       => __('List Patterns', 'block-design-abilities'),
-                'description' => __('Returns all available block patterns from two sources: (1) theme/plugin-registered patterns from the pattern registry (source: "theme" or "plugin"), and (2) user-created patterns stored in the database as wp_block posts (source: "user"). Registry patterns are identified by their slug (name). DB patterns are identified by their post_id. Use get-pattern with the appropriate identifier to retrieve full block content.', 'block-design-abilities'),
+                'description' => __('Returns block patterns from two sources: registry (theme/plugin, read-only, identified by slug) and database (wp_block posts, editable, identified by post_id). Use get-pattern to retrieve full content.', 'block-design-abilities'),
                 'category'    => 'block-design-abilities',
 
                 'input_schema' => array(
@@ -27,17 +53,17 @@ class Block_Design_Abilities_Patterns
                         'source' => array(
                             'type'        => 'string',
                             'enum'        => array('all', 'registry', 'database'),
-                            'description' => __('"all" (default) returns both registry and DB patterns. "registry" returns only theme/plugin patterns. "database" returns only user-created wp_block patterns.', 'block-design-abilities'),
+                            'description' => __('"all" (default), "registry", or "database".', 'block-design-abilities'),
                         ),
 
                         'category' => array(
                             'type'        => 'string',
-                            'description' => __('Optional. Filter registry patterns by category slug (e.g. "featured", "text", "header"). Has no effect on database patterns.', 'block-design-abilities'),
+                            'description' => __('Filter registry patterns by category slug.', 'block-design-abilities'),
                         ),
 
                         'search' => array(
                             'type'        => 'string',
-                            'description' => __('Optional. Filter results by keyword in title. Applied to both sources.', 'block-design-abilities'),
+                            'description' => __('Filter by keyword in title.', 'block-design-abilities'),
                         ),
 
                     ),
@@ -46,52 +72,11 @@ class Block_Design_Abilities_Patterns
                 'output_schema' => array(
                     'type'       => 'object',
                     'properties' => array(
-
-                        'success' => array(
-                            'type'        => 'boolean',
-                            'description' => __('Whether the retrieval was successful.', 'block-design-abilities'),
-                        ),
-
-                        'registry_patterns' => array(
-                            'type'        => 'array',
-                            'description' => __('Patterns registered by the active theme or plugins. These cannot be directly edited and saved back — they are read-only from a DB perspective. To "edit" one, you would duplicate it into a DB pattern. Use the "name" (slug) field with get-pattern.', 'block-design-abilities'),
-                            'items'       => array(
-                                'type'       => 'object',
-                                'properties' => array(
-                                    'name'        => array('type' => 'string',  'description' => __('Unique slug. Use this when calling get-pattern.', 'block-design-abilities')),
-                                    'title'       => array('type' => 'string',  'description' => __('Human-readable title.', 'block-design-abilities')),
-                                    'description' => array('type' => 'string',  'description' => __('Short description.', 'block-design-abilities')),
-                                    'source'      => array('type' => 'string',  'description' => __('"theme" or "plugin".', 'block-design-abilities')),
-                                    'categories'  => array('type' => 'array', 'items' => array('type' => 'string'), 'description' => __('Category slugs.', 'block-design-abilities')),
-                                ),
-                            ),
-                        ),
-
-                        'database_patterns' => array(
-                            'type'        => 'array',
-                            'description' => __('User-created patterns stored in the database (wp_block post type). These can be edited and updated. Use post_id with get-pattern and update-pattern.', 'block-design-abilities'),
-                            'items'       => array(
-                                'type'       => 'object',
-                                'properties' => array(
-                                    'post_id'     => array('type' => 'integer', 'description' => __('DB post ID. Use this when calling get-pattern or update-pattern.', 'block-design-abilities')),
-                                    'title'       => array('type' => 'string',  'description' => __('Pattern title.', 'block-design-abilities')),
-                                    'post_name'   => array('type' => 'string',  'description' => __('URL slug.', 'block-design-abilities')),
-                                    'sync_status' => array('type' => 'string',  'description' => __('"synced" or "unsynced". Synced patterns share content across all uses; unsynced are independent copies.', 'block-design-abilities')),
-                                    'categories'  => array('type' => 'array', 'items' => array('type' => 'string'), 'description' => __('wp_pattern_category taxonomy term slugs.', 'block-design-abilities')),
-                                    'modified'    => array('type' => 'string',  'description' => __('Last modified date.', 'block-design-abilities')),
-                                ),
-                            ),
-                        ),
-
-                        'totals' => array(
-                            'type'        => 'object',
-                            'properties'  => array(
-                                'registry' => array('type' => 'integer', 'description' => __('Number of registry patterns returned.', 'block-design-abilities')),
-                                'database' => array('type' => 'integer', 'description' => __('Number of database patterns returned.', 'block-design-abilities')),
-                            ),
-                        ),
-
-                        'error' => array('type' => 'string'),
+                        'success'           => array('type' => 'boolean'),
+                        'registry_patterns' => array('type' => 'array'),
+                        'database_patterns' => array('type' => 'array'),
+                        'totals'            => array('type' => 'object'),
+                        'error'             => array('type' => 'string'),
                     ),
                 ),
 
@@ -104,6 +89,26 @@ class Block_Design_Abilities_Patterns
         );
     }
 
+    /**
+     * Pattern listesini döndürür.
+     *
+     * Kaynak türüne göre WP_Block_Patterns_Registry'den (registry) ve/veya
+     * wp_block CPT sorgusundan (database) pattern'leri toplar. "core/" önekli
+     * registry pattern'leri her zaman hariç tutulur.
+     *
+     * @param array{
+     *     source?:   string,
+     *     category?: string,
+     *     search?:   string,
+     * } $input Yetenek giriş parametreleri.
+     *
+     * @return array{
+     *     success:           bool,
+     *     registry_patterns: array<int, array<string, mixed>>,
+     *     database_patterns: array<int, array<string, mixed>>,
+     *     totals:            array{registry: int, database: int},
+     * }
+     */
     public function list_patterns(array $input = array()): array
     {
         $source   = isset($input['source']) ? $input['source'] : 'all';
@@ -185,13 +190,21 @@ class Block_Design_Abilities_Patterns
         );
     }
 
+    /**
+     * 'block-design-abilities/get-pattern' yeteneğini Abilities API'ye kaydeder.
+     *
+     * Yetenek; source (zorunlu), slug veya post_id parametrelerini kabul eder,
+     * sonuç olarak ayrıştırılmış blok dizisini döndürür.
+     *
+     * @return void
+     */
     public function register_get_pattern_ability()
     {
         wp_register_ability(
             'block-design-abilities/get-pattern',
             array(
                 'label'       => __('Get Pattern', 'block-design-abilities'),
-                'description' => __('Retrieves a single block pattern and returns its parsed block array. For database patterns (source: "database"), provide post_id. For registry patterns (source: "registry"), provide slug (name). Only database patterns can be updated with update-pattern — registry patterns are read-only theme/plugin files.', 'block-design-abilities'),
+                'description' => __('Returns a pattern\'s parsed block array. source="registry": fetch by slug (read-only). source="database": fetch by post_id (editable via update-pattern).', 'block-design-abilities'),
                 'category'    => 'block-design-abilities',
 
                 'input_schema' => array(
@@ -202,17 +215,17 @@ class Block_Design_Abilities_Patterns
                         'source' => array(
                             'type'        => 'string',
                             'enum'        => array('registry', 'database'),
-                            'description' => __('"registry" to fetch a theme/plugin pattern by slug. "database" to fetch a user-created wp_block pattern by post_id.', 'block-design-abilities'),
+                            'description' => __('"registry" (fetch by slug) or "database" (fetch by post_id).', 'block-design-abilities'),
                         ),
 
                         'slug' => array(
                             'type'        => 'string',
-                            'description' => __('Required when source is "registry". The pattern name/slug (e.g. "mytheme/hero"). Obtain from list-patterns.', 'block-design-abilities'),
+                            'description' => __('Pattern slug from list-patterns. Required when source="registry".', 'block-design-abilities'),
                         ),
 
                         'post_id' => array(
                             'type'        => 'integer',
-                            'description' => __('Required when source is "database". The wp_block post ID. Obtain from list-patterns.', 'block-design-abilities'),
+                            'description' => __('wp_block post ID from list-patterns. Required when source="database".', 'block-design-abilities'),
                         ),
 
                     ),
@@ -222,18 +235,13 @@ class Block_Design_Abilities_Patterns
                     'type'       => 'object',
                     'properties' => array(
                         'success'     => array('type' => 'boolean'),
-                        'source'      => array('type' => 'string', 'description' => __('"registry" or "database".', 'block-design-abilities')),
-                        'post_id'     => array('type' => 'integer', 'description' => __('Only present for database patterns. Use this when calling update-pattern.', 'block-design-abilities')),
-                        'slug'        => array('type' => 'string',  'description' => __('Pattern slug/name.', 'block-design-abilities')),
+                        'source'      => array('type' => 'string'),
+                        'post_id'     => array('type' => 'integer'),
+                        'slug'        => array('type' => 'string'),
                         'title'       => array('type' => 'string'),
-                        'sync_status' => array('type' => 'string',  'description' => __('"synced" or "unsynced". Only for database patterns.', 'block-design-abilities')),
-                        'is_editable' => array('type' => 'boolean', 'description' => __('Whether this pattern can be updated. True only for database patterns.', 'block-design-abilities')),
-                        'raw_content' => array('type' => 'string',  'description' => __('Raw serialized block markup. For reference only.', 'block-design-abilities')),
-                        'blocks'      => array(
-                            'type'        => 'array',
-                            'description' => __('Parsed block array. For database patterns, edit this and pass to update-pattern. For registry patterns, this is read-only.', 'block-design-abilities'),
-                            'items'       => array('type' => 'object'),
-                        ),
+                        'sync_status' => array('type' => 'string'),
+                        'is_editable' => array('type' => 'boolean'),
+                        'blocks'      => array('type' => 'array'),
                         'block_count' => array('type' => 'integer'),
                         'error'       => array('type' => 'string'),
                     ),
@@ -248,6 +256,33 @@ class Block_Design_Abilities_Patterns
         );
     }
 
+    /**
+     * Tek bir pattern'i ayrıştırılmış blok dizisi olarak döndürür.
+     *
+     * source="registry" ise slug ile WP_Block_Patterns_Registry'den,
+     * source="database" ise post_id ile wp_block gönderisinden çeker.
+     * İçerik parse_blocks() ile ayrıştırılır; blockName değeri boş olan
+     * düğümler (yorum blokları vb.) sonuçtan çıkarılır.
+     *
+     * @param array{
+     *     source:   string,
+     *     slug?:    string,
+     *     post_id?: int,
+     * } $input Yetenek giriş parametreleri.
+     *
+     * @return array{
+     *     success:      bool,
+     *     source?:      string,
+     *     slug?:        string,
+     *     post_id?:     int,
+     *     title?:       string,
+     *     sync_status?: string,
+     *     is_editable?: bool,
+     *     blocks?:      array<int, array<string, mixed>>,
+     *     block_count?: int,
+     *     error?:       string,
+     * }
+     */
     public function get_pattern(array $input): array
     {
         $source = $input['source'];
@@ -277,7 +312,6 @@ class Block_Design_Abilities_Patterns
                 'slug'        => $pattern['name'],
                 'title'       => $pattern['title'],
                 'is_editable' => false,
-                'raw_content' => $raw_content,
                 'blocks'      => $parsed_blocks,
                 'block_count' => count($parsed_blocks),
             );
@@ -313,7 +347,6 @@ class Block_Design_Abilities_Patterns
                 'title'       => $post->post_title,
                 'sync_status' => $sync_status,
                 'is_editable' => true,
-                'raw_content' => $raw_content,
                 'blocks'      => $parsed_blocks,
                 'block_count' => count($parsed_blocks),
             );
@@ -322,13 +355,22 @@ class Block_Design_Abilities_Patterns
         return array('success' => false, 'error' => __('Invalid source. Must be "registry" or "database".', 'block-design-abilities'));
     }
 
+    /**
+     * 'block-design-abilities/update-pattern' yeteneğini Abilities API'ye kaydeder.
+     *
+     * Yetenek; post_id ve blocks (zorunlu), title (isteğe bağlı)
+     * parametrelerini kabul eder. Yalnızca wp_block türündeki gönderiler
+     * güncellenebilir; registry pattern'leri salt okunurdur.
+     *
+     * @return void
+     */
     public function register_update_pattern_ability()
     {
         wp_register_ability(
             'block-design-abilities/update-pattern',
             array(
                 'label'       => __('Update Pattern', 'block-design-abilities'),
-                'description' => __('Updates an existing database pattern (wp_block post type). Only user-created database patterns can be updated — registry patterns from themes/plugins are read-only files. Always call get-pattern first (source: "database") to retrieve the current block structure, edit it, then call this ability with the modified blocks array.', 'block-design-abilities'),
+                'description' => __('Updates a database pattern (wp_block). Call get-pattern (source="database") first, edit the blocks, then pass them here with post_id.', 'block-design-abilities'),
                 'category'    => 'block-design-abilities',
 
                 'input_schema' => array(
@@ -338,18 +380,18 @@ class Block_Design_Abilities_Patterns
 
                         'post_id' => array(
                             'type'        => 'integer',
-                            'description' => __('The wp_block post ID of the pattern to update. Obtain from list-patterns or get-pattern.', 'my-plugin'),
+                            'description' => __('wp_block post ID from list-patterns or get-pattern.', 'block-design-abilities'),
                         ),
 
                         'blocks' => array(
                             'type'        => 'array',
-                            'description' => __('The full updated block array. Replaces existing content entirely. Use blocks from get-pattern as your starting point.', 'my-plugin'),
+                            'description' => __('Full updated block array from get-pattern. Replaces existing content entirely.', 'block-design-abilities'),
                             'items'       => array('type' => 'object'),
                         ),
 
                         'title' => array(
                             'type'        => 'string',
-                            'description' => __('Optional. If provided, updates the pattern title as well.', 'my-plugin'),
+                            'description' => __('Optional. Updates the pattern title if provided.', 'block-design-abilities'),
                         ),
 
                     ),
@@ -362,8 +404,6 @@ class Block_Design_Abilities_Patterns
                         'post_id'            => array('type' => 'integer'),
                         'title'              => array('type' => 'string'),
                         'sync_status'        => array('type' => 'string'),
-                        'previous_content'   => array('type' => 'string', 'description' => __('Raw content before update, for rollback reference.', 'my-plugin')),
-                        'serialized_content' => array('type' => 'string', 'description' => __('New serialized content saved to DB.', 'my-plugin')),
                         'error'              => array('type' => 'string'),
                     ),
                 ),
@@ -377,6 +417,27 @@ class Block_Design_Abilities_Patterns
         );
     }
 
+    /**
+     * Veritabanındaki bir pattern'i (wp_block) günceller.
+     *
+     * Gelen blok dizisi serialize_block() ile serileştirilir ve
+     * wp_update_post() ile gönderi içeriğinin yerine yazılır.
+     * Boş serileştirme sonucu hata döndürür.
+     *
+     * @param array{
+     *     post_id: int,
+     *     blocks:  array<int, array<string, mixed>>,
+     *     title?:  string,
+     * } $input Yetenek giriş parametreleri.
+     *
+     * @return array{
+     *     success:      bool,
+     *     post_id?:     int,
+     *     title?:       string,
+     *     sync_status?: string,
+     *     error?:       string,
+     * }
+     */
     public function update_pattern(array $input): array
     {
         $post_id = absint($input['post_id']);
@@ -424,19 +485,26 @@ class Block_Design_Abilities_Patterns
             'success'            => true,
             'post_id'            => $post_id,
             'title'              => get_post($post_id)->post_title,
-            'sync_status'        => $sync_status,
-            'previous_content'   => $previous_content,
-            'serialized_content' => $serialized_content,
+            'sync_status'        => $sync_status
         );
     }
 
+    /**
+     * 'block-design-abilities/duplicate-pattern' yeteneğini Abilities API'ye kaydeder.
+     *
+     * Yetenek; slug (zorunlu), title ve sync_status (isteğe bağlı)
+     * parametrelerini kabul eder. Registry pattern'ini bir wp_block gönderisine
+     * kopyalayarak düzenlenebilir hale getirir.
+     *
+     * @return void
+     */
     public function register_duplicate_pattern_ability()
     {
         wp_register_ability(
             'block-design-abilities/duplicate-pattern',
             array(
                 'label'       => __('Duplicate Pattern', 'block-design-abilities'),
-                'description' => __('Creates a database copy of a registry (theme/plugin) pattern, making it editable. Use this when you want to edit a theme pattern — registry patterns are read-only files, so you must duplicate them first. The duplicate is saved as a wp_block post and can then be modified with update-pattern. Workflow: list-patterns → get-pattern (source: "registry") → duplicate-pattern → update-pattern.', 'block-design-abilities'),
+                'description' => __('Copies a read-only registry pattern into a database wp_block post, making it editable. Workflow: list-patterns → duplicate-pattern → update-pattern.', 'block-design-abilities'),
                 'category'    => 'block-design-abilities',
 
                 'input_schema' => array(
@@ -446,18 +514,18 @@ class Block_Design_Abilities_Patterns
 
                         'slug' => array(
                             'type'        => 'string',
-                            'description' => __('The slug/name of the registry pattern to duplicate (e.g. "mytheme/hero"). Obtain from list-patterns.', 'block-design-abilities'),
+                            'description' => __('Registry pattern slug from list-patterns.', 'block-design-abilities'),
                         ),
 
                         'title' => array(
                             'type'        => 'string',
-                            'description' => __('Optional. Custom title for the duplicate. If omitted, defaults to the original title with " (Copy)" appended.', 'block-design-abilities'),
+                            'description' => __('Optional. Custom title. Defaults to original title + " (Copy)".', 'block-design-abilities'),
                         ),
 
                         'sync_status' => array(
                             'type'        => 'string',
                             'enum'        => array('synced', 'unsynced'),
-                            'description' => __('Whether the duplicated pattern should be synced or unsynced. Default is "unsynced". Synced patterns share content across all uses; unsynced patterns are independent copies per insertion.', 'block-design-abilities'),
+                            'description' => __('Default "unsynced". "synced" = shared component updated everywhere when changed.', 'block-design-abilities'),
                         ),
 
                     ),
@@ -467,12 +535,12 @@ class Block_Design_Abilities_Patterns
                     'type'       => 'object',
                     'properties' => array(
                         'success'            => array('type' => 'boolean'),
-                        'post_id'            => array('type' => 'integer', 'description' => __('DB post ID of the newly created duplicate. Use this with update-pattern.', 'block-design-abilities')),
+                        'post_id'            => array('type' => 'integer'),
                         'title'              => array('type' => 'string'),
-                        'slug'               => array('type' => 'string',  'description' => __('Auto-generated URL slug for the new DB pattern.', 'block-design-abilities')),
+                        'slug'               => array('type' => 'string'),
                         'sync_status'        => array('type' => 'string'),
-                        'original_slug'      => array('type' => 'string',  'description' => __('The registry slug this was duplicated from.', 'block-design-abilities')),
-                        'serialized_content' => array('type' => 'string',  'description' => __('The block markup copied from the original pattern.', 'block-design-abilities')),
+                        'original_slug'      => array('type' => 'string'),
+                        'serialized_content' => array('type' => 'string'),
                         'error'              => array('type' => 'string'),
                     ),
                 ),
@@ -486,6 +554,31 @@ class Block_Design_Abilities_Patterns
         );
     }
 
+    /**
+     * Salt okunur bir registry pattern'ini veritabanına (wp_block) kopyalar.
+     *
+     * Kopyalama sırasında orijinal içerik olduğu gibi aktarılır; başlık
+     * belirtilmezse orijinal başlığa " (Copy)" eki eklenir. Kategoriler
+     * wp_pattern_category taksonomisine atanır. sync_status meta değeri
+     * istenirse "unsynced" olarak kaydedilir.
+     *
+     * @param array{
+     *     slug:         string,
+     *     title?:       string,
+     *     sync_status?: string,
+     * } $input Yetenek giriş parametreleri.
+     *
+     * @return array{
+     *     success?:            bool,
+     *     post_id?:            int,
+     *     title?:              string,
+     *     slug?:               string,
+     *     sync_status?:        string,
+     *     original_slug?:      string,
+     *     serialized_content?: string,
+     *     error?:              string,
+     * }
+     */
     public function duplicate_pattern(array $input): array
     {
         $slug = sanitize_text_field($input['slug']);
@@ -541,13 +634,22 @@ class Block_Design_Abilities_Patterns
         );
     }
 
+    /**
+     * 'block-design-abilities/create-pattern' yeteneğini Abilities API'ye kaydeder.
+     *
+     * Yetenek; title ve blocks (zorunlu), description, categories ve
+     * sync_status (isteğe bağlı) parametrelerini kabul eder. Oluşturulan
+     * pattern Site Editor > "My Patterns" bölümünde görünür.
+     *
+     * @return void
+     */
     public function register_create_pattern_ability()
     {
         wp_register_ability(
             'block-design-abilities/create-pattern',
             array(
                 'label'       => __('Create Pattern', 'block-design-abilities'),
-                'description' => __('Creates a new block pattern from scratch and saves it to the database as a wp_block post. Construct the blocks array yourself based on the user\'s requirements (e.g. "a pricing table with 3 tiers", "a hero section with heading and CTA button"). Use get-theme-json first to know available color slugs, font sizes, and spacing tokens so your block attrs reference correct preset values. The pattern will appear in the Site Editor under "My Patterns".', 'block-design-abilities'),
+                'description' => __('Creates a new wp_block pattern from scratch. Use get-theme-json first to get available color/font/spacing tokens. The pattern appears in Site Editor under "My Patterns".', 'block-design-abilities'),
                 'category'    => 'block-design-abilities',
 
                 'input_schema' => array(
@@ -557,40 +659,30 @@ class Block_Design_Abilities_Patterns
 
                         'title' => array(
                             'type'        => 'string',
-                            'description' => __('Human-readable title for the pattern (e.g. "Pricing Table", "Hero with CTA").', 'block-design-abilities'),
+                            'description' => __('Pattern title (e.g. "Pricing Table").', 'block-design-abilities'),
                         ),
 
                         'description' => array(
                             'type'        => 'string',
-                            'description' => __('Optional. Short description of what this pattern is for.', 'block-design-abilities'),
+                            'description' => __('Optional. Short description.', 'block-design-abilities'),
                         ),
 
                         'blocks' => array(
                             'type'        => 'array',
-                            'description' => __('Block array that makes up the pattern. Each block must follow the WP_Block_Parser_Block structure: blockName, attrs, innerBlocks, innerHTML, innerContent. Wrap everything in a core/group block so the pattern is self-contained and moveable as a unit.', 'block-design-abilities'),
-                            'items'       => array(
-                                'type'     => 'object',
-                                'required' => array('blockName', 'attrs', 'innerBlocks', 'innerHTML', 'innerContent'),
-                                'properties' => array(
-                                    'blockName'    => array('type' => 'string', 'description' => __('Block name (e.g. "core/group", "core/heading", "core/columns").', 'block-design-abilities')),
-                                    'attrs'        => array('type' => 'object', 'description' => __('Block attributes (e.g. {"align":"wide","backgroundColor":"primary"}).', 'block-design-abilities')),
-                                    'innerBlocks'  => array('type' => 'array', 'items' => array('type' => 'object'), 'description' => __('Nested child blocks, same structure recursively.', 'block-design-abilities')),
-                                    'innerHTML'    => array('type' => 'string', 'description' => __('Raw HTML inside the block comment delimiters.', 'block-design-abilities')),
-                                    'innerContent' => array('type' => 'array', 'items' => array(), 'description' => __('Ordered string fragments and null markers for inner block injection.', 'block-design-abilities')),
-                                ),
-                            ),
+                            'description' => __('Block array. Same WP_Block_Parser_Block structure as returned by get-pattern. Wrap in core/group for a self-contained unit.', 'block-design-abilities'),
+                            'items'       => array('type' => 'object'),
                         ),
 
                         'categories' => array(
                             'type'        => 'array',
                             'items'       => array('type' => 'string'),
-                            'description' => __('Optional. wp_pattern_category taxonomy slugs to assign (e.g. ["featured", "cta"]). If a slug does not exist it will be created automatically.', 'block-design-abilities'),
+                            'description' => __('Optional. wp_pattern_category slugs. Non-existent slugs are created automatically.', 'block-design-abilities'),
                         ),
 
                         'sync_status' => array(
                             'type'        => 'string',
                             'enum'        => array('synced', 'unsynced'),
-                            'description' => __('Whether the pattern should be synced or unsynced. Default is "unsynced". Use "synced" only if the pattern should behave as a shared component updated everywhere when changed.', 'block-design-abilities'),
+                            'description' => __('Default "unsynced". "synced" = shared component updated everywhere when changed.', 'block-design-abilities'),
                         ),
 
                     ),
@@ -600,12 +692,12 @@ class Block_Design_Abilities_Patterns
                     'type'       => 'object',
                     'properties' => array(
                         'success'            => array('type' => 'boolean'),
-                        'post_id'            => array('type' => 'integer', 'description' => __('DB post ID of the newly created pattern.', 'block-design-abilities')),
+                        'post_id'            => array('type' => 'integer'),
                         'title'              => array('type' => 'string'),
                         'slug'               => array('type' => 'string'),
                         'sync_status'        => array('type' => 'string'),
-                        'categories'         => array('type' => 'array', 'items' => array('type' => 'string')),
-                        'serialized_content' => array('type' => 'string', 'description' => __('The block markup saved to the database.', 'block-design-abilities')),
+                        'categories'         => array('type' => 'array'),
+                        'serialized_content' => array('type' => 'string'),
                         'error'              => array('type' => 'string'),
                     ),
                 ),
@@ -619,6 +711,33 @@ class Block_Design_Abilities_Patterns
         );
     }
 
+    /**
+     * Sıfırdan yeni bir wp_block pattern oluşturur.
+     *
+     * Blok dizisi serialize_block() ile serileştirilir ve wp_insert_post()
+     * ile veritabanına kaydedilir. Belirtilen kategori slug'ları
+     * wp_pattern_category taksonomisinde yoksa otomatik olarak oluşturulur.
+     * Boş serileştirme sonucu hata döndürür.
+     *
+     * @param array{
+     *     title:        string,
+     *     blocks:       array<int, array<string, mixed>>,
+     *     description?: string,
+     *     categories?:  string[],
+     *     sync_status?: string,
+     * } $input Yetenek giriş parametreleri.
+     *
+     * @return array{
+     *     success?:            bool,
+     *     post_id?:            int,
+     *     title?:              string,
+     *     slug?:               string,
+     *     sync_status?:        string,
+     *     categories?:         string[],
+     *     serialized_content?: string,
+     *     error?:              string,
+     * }
+     */
     public function create_pattern(array $input): array
     {
         $title       = sanitize_text_field($input['title']);
