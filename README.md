@@ -3,7 +3,7 @@
 A WordPress Abilities API plugin for creating and modifying block templates, pages, posts, and patterns using AI.
 
 - **Author:** Arkenon
-- **Version:** 1.0.0
+- **Version:** 1.0.2
 - **License:** GPL v2 or later
 - **GitHub:** https://github.com/Arkenon/block-design-abilities
 
@@ -19,6 +19,10 @@ A WordPress Abilities API plugin for creating and modifying block templates, pag
 
 Multisite network compatible.
 
+### Dependencies
+
+[html-to-blocks-converter](https://github.com/chubes4/html-to-blocks-converter) is bundled via Composer. It converts raw HTML into properly structured Gutenberg block arrays, ensuring `attrs` and `innerContent` are always consistent and eliminating block validation errors.
+
 ---
 
 ## Installation
@@ -26,6 +30,45 @@ Multisite network compatible.
 1. Upload the plugin folder to `wp-content/plugins/block-design-abilities/`.
 2. Activate the plugin from the WordPress admin panel.
 3. The plugin automatically registers all abilities under the `block-design-abilities` category.
+
+---
+
+## MCP Usage
+
+This plugin exposes its abilities via MCP (Model Context Protocol), allowing any MCP-compatible client to interact with your WordPress site directly.
+
+### Prerequisite
+
+Install and activate the [wordpress-mcp-adapter](https://github.com/Automattic/wordpress-mcp-adapter) plugin alongside this one. It provides the MCP endpoint that clients connect to.
+
+### Client Configuration
+
+Add the following to your MCP client's configuration (Claude Code, Cursor, Codex, Antigravity, or any other MCP-compatible client):
+
+```json
+"my-wp-site": {
+  "command": "npx",
+  "args": [
+    "-y",
+    "@automattic/mcp-wordpress-remote@latest"
+  ],
+  "env": {
+    "WP_API_URL": "http://my-wp-site.com/wp-json/mcp/mcp-adapter-default-server",
+    "LOG_FILE": "/path/to/logs/mcp-adapter.log",
+    "WP_API_USERNAME": "my-username",
+    "WP_API_PASSWORD": "my-password"
+  }
+}
+```
+
+| Field | Description |
+|---|---|
+| `WP_API_URL` | Your site's MCP adapter endpoint. Replace `my-wp-site.com` with your domain. |
+| `LOG_FILE` | Optional. Path for MCP transport logs. |
+| `WP_API_USERNAME` | WordPress username with sufficient permissions (`edit_posts` / `edit_theme_options`). |
+| `WP_API_PASSWORD` | WordPress application password for the user above. |
+
+Once connected, all abilities registered under the `block-design-abilities` category are available to the client automatically.
 
 ---
 
@@ -106,9 +149,12 @@ Saves or creates a block template. Provide either `post_id` or `slug`, not both.
 
 | Field | Type | Required | Description |
 |---|---|---|---|
-| `blocks` | array | Yes | Block array to save |
+| `html` | string | Yes* | Raw HTML — automatically converted to blocks. Preferred; avoids block validation errors. |
+| `blocks` | array | Yes* | Block array. Use `html` instead to avoid validation errors. |
 | `post_id` | int | No | Existing template post ID (for updates) |
 | `slug` | string | No | Theme file template slug (to create a new DB record) |
+
+*Provide `html` or `blocks`, not both.
 
 - When `post_id` is provided: updates via `wp_update_post()`.
 - When `slug` is provided: creates a new database record from the theme file via `wp_insert_post()`.
@@ -204,8 +250,11 @@ Saves updated block content to a post or page.
 | Field | Type | Required | Description |
 |---|---|---|---|
 | `post_id` | int | Yes | Post ID to update |
-| `blocks` | array | Yes | New block array |
+| `html` | string | Yes* | Raw HTML — automatically converted to blocks. Preferred; avoids block validation errors. |
+| `blocks` | array | Yes* | New block array. Use `html` instead to avoid validation errors. |
 | `title` | string | No | New title |
+
+*Provide `html` or `blocks`, not both.
 
 **Returned Fields:**
 
@@ -293,8 +342,11 @@ Saves updated block content to a database pattern. Only `wp_block` posts are edi
 | Field | Type | Required | Description |
 |---|---|---|---|
 | `post_id` | int | Yes | `wp_block` post ID |
-| `blocks` | array | Yes | New block array |
+| `html` | string | Yes* | Raw HTML — automatically converted to blocks. Preferred; avoids block validation errors. |
+| `blocks` | array | Yes* | New block array. Use `html` instead to avoid validation errors. |
 | `title` | string | No | New title |
+
+*Provide `html` or `blocks`, not both.
 
 **Returned Fields:**
 
@@ -350,10 +402,13 @@ Creates a new block pattern from scratch.
 | Field | Type | Required | Description |
 |---|---|---|---|
 | `title` | string | Yes | Pattern title |
-| `blocks` | array | Yes | Block array |
+| `html` | string | Yes* | Raw HTML — automatically converted to blocks. Preferred; avoids block validation errors. |
+| `blocks` | array | Yes* | Block array. Use `html` instead to avoid validation errors. |
 | `description` | string | No | Pattern description |
 | `categories` | array | No | List of category slugs |
 | `sync_status` | string | No | `"synced"` or `"unsynced"` (default: `"unsynced"`) |
+
+*Provide `html` or `blocks`, not both.
 
 Category slugs that do not exist are automatically created in the `wp_pattern_category` taxonomy.
 
@@ -372,9 +427,11 @@ Category slugs that do not exist are automatically created in the `wp_pattern_ca
 
 ---
 
-### Design Tokens (Theme JSON)
+### Global Styles
 
-#### `get-theme-json`
+Read and write the active theme's design tokens and user style overrides.
+
+#### `get-global-styles`
 
 Returns the active theme's design tokens from `theme.json` (colors, typography, spacing, etc.).
 
@@ -408,15 +465,44 @@ Returns the active theme's design tokens from `theme.json` (colors, typography, 
 
 ---
 
+#### `update-global-styles`
+
+Merges the provided settings and/or styles into the active theme's user overrides (`wp_global_styles` post). Only supplied keys are changed; everything else is preserved. Creates the post if it does not yet exist.
+
+**Permission:** `edit_theme_options`
+
+**Parameters:**
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `settings` | object | No* | Partial settings object to deep-merge into global settings (e.g. `{"color":{"palette":[...]}}`) |
+| `styles` | object | No* | Partial styles object to deep-merge into global styles (e.g. `{"typography":{"fontSize":"1rem"}}`) |
+
+*At least one of `settings` or `styles` must be provided.
+
+**Returned Fields:**
+
+| Field | Type | Description |
+|---|---|---|
+| `success` | bool | Operation result |
+| `post_id` | int | Created or updated `wp_global_styles` post ID |
+| `created` | bool | `true` if a new post was created; `false` if an existing post was updated |
+| `error` | string\|null | Error message |
+
+---
+
 ## Technical Details
 
 ### Block Processing
 
-| Operation | WordPress Function |
+| Operation | Function / Library |
 |---|---|
-| HTML → Block Array | `parse_blocks()` |
-| Block Array → HTML | `serialize_block()` |
+| Raw HTML → Block Array | `html_to_blocks_raw_handler()` — [html-to-blocks-converter](https://github.com/chubes4/html-to-blocks-converter) |
+| Serialized content → Block Array | `parse_blocks()` |
+| Block Array → Serialized content | `serialize_block()` |
 | Filter empty blocks | `blockName === null` check |
+
+When the `html` parameter is provided to any write ability, `html_to_blocks_raw_handler()` converts the raw HTML into a properly structured block array before serialization. This ensures `attrs` and `innerContent` are always consistent, eliminating block validation errors in the editor.
 
 ### Permission Requirements
 
@@ -455,12 +541,15 @@ block-design-abilities/
 │   ├── class-template-abilities.php        # Template abilities (3 abilities)
 │   ├── class-post-abilities.php            # Post/page abilities (3 abilities)
 │   ├── class-pattern-abilities.php         # Pattern abilities (5 abilities)
-│   └── class-theme-json-abilities.php      # Theme JSON abilities (1 ability)
+│   └── global-styles-abilities.php         # Global styles abilities (2 abilities)
 ├── README.md
 └── LICENSE
 ```
 
 ---
+
+## Credit
+[chubes4/html-to-blocks-converter](https://github.com/chubes4/html-to-blocks-converter)
 
 ## License
 

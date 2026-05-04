@@ -370,12 +370,12 @@ class Block_Design_Abilities_Patterns
             'block-design-abilities/update-pattern',
             array(
                 'label'       => __('Update Pattern', 'block-design-abilities'),
-                'description' => __('Updates a database pattern (wp_block). Call get-pattern (source="database") first, edit the blocks, then pass them here with post_id.', 'block-design-abilities'),
+                'description' => __('Updates a database pattern (wp_block). Provide html (preferred — avoids block validation errors) or a blocks array, along with post_id.', 'block-design-abilities'),
                 'category'    => 'block-design-abilities',
 
                 'input_schema' => array(
                     'type'     => 'object',
-                    'required' => array('post_id', 'blocks'),
+                    'required' => array('post_id'),
                     'properties' => array(
 
                         'post_id' => array(
@@ -383,9 +383,14 @@ class Block_Design_Abilities_Patterns
                             'description' => __('wp_block post ID from list-patterns or get-pattern.', 'block-design-abilities'),
                         ),
 
+                        'html' => array(
+                            'type'        => 'string',
+                            'description' => __('Raw HTML for the pattern. Automatically converted to blocks — preferred over blocks parameter because it prevents innerHTML/attributes mismatches that cause block validation errors. Provide html or blocks, not both.', 'block-design-abilities'),
+                        ),
+
                         'blocks' => array(
                             'type'        => 'array',
-                            'description' => __('Full updated block array from get-pattern. Replaces existing content entirely.', 'block-design-abilities'),
+                            'description' => __('Full updated block array from get-pattern. Use html instead to avoid block validation errors. Replaces existing content entirely.', 'block-design-abilities'),
                             'items'       => array('type' => 'object'),
                         ),
 
@@ -441,7 +446,6 @@ class Block_Design_Abilities_Patterns
     public function update_pattern(array $input): array
     {
         $post_id = absint($input['post_id']);
-        $blocks  = $input['blocks'];
 
         $post = get_post($post_id);
 
@@ -450,6 +454,11 @@ class Block_Design_Abilities_Patterns
                 'success' => false,
                 'error'   => sprintf(__('Database pattern with post_id %d not found. Only wp_block posts can be updated. Registry patterns are read-only.', 'my-plugin'), $post_id),
             );
+        }
+
+        $blocks = Block_Design_Abilities::resolve_blocks($input);
+        if (is_wp_error($blocks)) {
+            return array('success' => false, 'error' => $blocks->get_error_message());
         }
 
         $previous_content = $post->post_content;
@@ -648,12 +657,12 @@ class Block_Design_Abilities_Patterns
             'block-design-abilities/create-pattern',
             array(
                 'label'       => __('Create Pattern', 'block-design-abilities'),
-                'description' => __('Creates a new wp_block pattern from scratch. Use get-theme-json first to get available color/font/spacing tokens. The pattern appears in Site Editor under "My Patterns".', 'block-design-abilities'),
+                'description' => __('Creates a new wp_block pattern from scratch. Provide html (preferred — avoids block validation errors) or a blocks array. The pattern appears in Site Editor under "My Patterns".', 'block-design-abilities'),
                 'category'    => 'block-design-abilities',
 
                 'input_schema' => array(
                     'type'     => 'object',
-                    'required' => array('title', 'blocks'),
+                    'required' => array('title'),
                     'properties' => array(
 
                         'title' => array(
@@ -666,9 +675,14 @@ class Block_Design_Abilities_Patterns
                             'description' => __('Optional. Short description.', 'block-design-abilities'),
                         ),
 
+                        'html' => array(
+                            'type'        => 'string',
+                            'description' => __('Raw HTML for the pattern. Automatically converted to blocks — preferred over blocks parameter because it prevents innerHTML/attributes mismatches that cause block validation errors. Provide html or blocks, not both.', 'block-design-abilities'),
+                        ),
+
                         'blocks' => array(
                             'type'        => 'array',
-                            'description' => __('Block array. Same WP_Block_Parser_Block structure as returned by get-pattern. Wrap in core/group for a self-contained unit.', 'block-design-abilities'),
+                            'description' => __('Block array (WP_Block_Parser_Block format). Use html instead to avoid block validation errors. Wrap in core/group for a self-contained unit.', 'block-design-abilities'),
                             'items'       => array('type' => 'object'),
                         ),
 
@@ -740,12 +754,16 @@ class Block_Design_Abilities_Patterns
     public function create_pattern(array $input): array
     {
         $title       = sanitize_text_field($input['title']);
-        $blocks      = $input['blocks'];
         $description = isset($input['description']) ? sanitize_text_field($input['description']) : '';
         $categories  = isset($input['categories']) ? array_map('sanitize_text_field', $input['categories']) : array();
         $sync_status = (isset($input['sync_status']) && $input['sync_status'] === 'synced')
             ? 'synced'
             : 'unsynced';
+
+        $blocks = Block_Design_Abilities::resolve_blocks($input);
+        if (is_wp_error($blocks)) {
+            return array('success' => false, 'error' => $blocks->get_error_message());
+        }
 
         $serialized_content = '';
         foreach ($blocks as $block) {

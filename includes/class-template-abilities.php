@@ -264,12 +264,12 @@ class Block_Design_Abilities_Templates
             'block-design-abilities/add-or-update-template',
             array(
                 'label'       => __('Add or Update Template', 'block-design-abilities'),
-                'description' => __('Saves an updated block array to a template. Always call get-template first, edit the returned blocks, then pass them here with post_id or slug. Do not use both post_id and slug simultaneously.', 'block-design-abilities'),
+                'description' => __('Saves content to a template. Provide html (preferred — avoids block validation errors) or a blocks array, along with post_id or slug (not both).', 'block-design-abilities'),
                 'category'    => 'block-design-abilities',
 
                 'input_schema' => array(
                     'type'       => 'object',
-                    'required'   => array('blocks'),
+                    'required'   => array(),
                     'properties' => array(
 
                         'post_id' => array(
@@ -282,9 +282,14 @@ class Block_Design_Abilities_Templates
                             'description' => __('Template slug. Use this to create (duplicate) new template from theme file.', 'block-design-abilities'),
                         ),
 
+                        'html' => array(
+                            'type'        => 'string',
+                            'description' => __('Raw HTML content. Automatically converted to blocks — preferred over blocks parameter because it prevents innerHTML/attributes mismatches that cause block validation errors. Provide html or blocks, not both.', 'block-design-abilities'),
+                        ),
+
                         'blocks' => array(
                             'type'        => 'array',
-                            'description' => __('Full updated block array. Same structure as returned by get-template. Replaces template content entirely.', 'block-design-abilities')
+                            'description' => __('Full updated block array. Use html instead to avoid block validation errors. Same structure as returned by get-template. Replaces template content entirely.', 'block-design-abilities')
                         ),
 
                     ),
@@ -331,8 +336,6 @@ class Block_Design_Abilities_Templates
      */
     public function update_template(array $input): array
     {
-        $blocks = $input['blocks'];
-
         // Check if both post_id and slug are provided
         if (! empty($input['post_id']) && ! empty($input['slug'])) {
             return array(
@@ -356,11 +359,8 @@ class Block_Design_Abilities_Templates
                     ),
                 );
             }
-
-            $previous_content = $post->post_content;
         } elseif (! empty($input['slug'])) {
             // Template from theme file — not yet saved to DB
-            // Read the existing content first
             $template_id = get_stylesheet() . '//' . sanitize_title($input['slug']);
             $template    = get_block_template($template_id, 'wp_template');
 
@@ -374,14 +374,18 @@ class Block_Design_Abilities_Templates
                 );
             }
 
-            $previous_content = $template->content;
-            $post_id          = null; // Will be created below with wp_insert_post
+            $post_id = null; // Will be created below with wp_insert_post
 
         } else {
             return array(
                 'success' => false,
                 'error'   => __('Either post_id or slug must be provided.', 'block-design-abilities'),
             );
+        }
+
+        $blocks = Block_Design_Abilities::resolve_blocks($input);
+        if (is_wp_error($blocks)) {
+            return array('success' => false, 'error' => $blocks->get_error_message());
         }
 
         // Serialize the block array

@@ -327,12 +327,12 @@ class Block_Design_Abilities_Posts
             'block-design-abilities/update-post',
             array(
                 'label'       => __('Update Post or Page', 'block-design-abilities'),
-                'description' => __('Saves an updated block array to a post/page. Call get-post first, edit the blocks, then pass them here with post_id.', 'block-design-abilities'),
+                'description' => __('Saves content to a post/page. Provide html (preferred — avoids block validation errors) or a blocks array, along with post_id.', 'block-design-abilities'),
                 'category'    => 'block-design-abilities',
 
                 'input_schema' => array(
                     'type'       => 'object',
-                    'required'   => array('post_id', 'blocks'),
+                    'required'   => array('post_id'),
                     'properties' => array(
 
                         'post_id' => array(
@@ -340,9 +340,14 @@ class Block_Design_Abilities_Posts
                             'description' => __('Post/page ID from get-post.', 'block-design-abilities'),
                         ),
 
+                        'html' => array(
+                            'type'        => 'string',
+                            'description' => __('Raw HTML content. Automatically converted to blocks — preferred over blocks parameter because it prevents innerHTML/attributes mismatches that cause block validation errors. Provide html or blocks, not both.', 'block-design-abilities'),
+                        ),
+
                         'blocks' => array(
                             'type'        => 'array',
-                            'description' => __('Full updated block array from get-post. Replaces existing content entirely.', 'block-design-abilities'),
+                            'description' => __('Full updated block array from get-post. Use html instead to avoid block validation errors. Replaces existing content entirely.', 'block-design-abilities'),
                             'items'       => array('type' => 'object'),
                         ),
 
@@ -399,7 +404,6 @@ class Block_Design_Abilities_Posts
     public function update_post(array $input): array
     {
         $post_id = absint($input['post_id']);
-        $blocks  = $input['blocks'];
 
         $post = get_post($post_id);
 
@@ -413,7 +417,10 @@ class Block_Design_Abilities_Posts
             );
         }
 
-        $previous_content = $post->post_content;
+        $blocks = Block_Design_Abilities::resolve_blocks($input);
+        if (is_wp_error($blocks)) {
+            return array('success' => false, 'error' => $blocks->get_error_message());
+        }
 
         $serialized_content = '';
         foreach ($blocks as $block) {
