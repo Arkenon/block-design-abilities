@@ -33,12 +33,12 @@ Multisite network compatible.
 
 This plugin is built on top of the WordPress Abilities API. It exposes abilities for AI agents across four content types:
 
-| Class | Abilities | Content Type |
-|---|---|---|
-| `Block_Design_Abilities_Templates` | 3 | Block Templates (`wp_template`) |
-| `Block_Design_Abilities_Posts` | 3 | Posts and Pages |
-| `Block_Design_Abilities_Patterns` | 5 | Block Patterns (`wp_block`) |
-| `Block_Design_Abilities_Global_Styles` | 1 | Design Tokens (theme.json) |
+| Class | Content Type |
+|---|---|
+| `Block_Design_Abilities_Templates` | Block Templates (`wp_template`) |
+| `Block_Design_Abilities_Posts` | Posts and Pages |
+| `Block_Design_Abilities_Patterns` | Block Patterns (`wp_block`) |
+| `Block_Design_Abilities_Global_Styles` | Design Tokens (theme.json) |
 
 ---
 
