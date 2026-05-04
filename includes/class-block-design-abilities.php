@@ -9,7 +9,7 @@ class Block_Design_Abilities
 
         new Block_Design_Abilities_Templates();
         new Block_Design_Abilities_Posts();
-        new Block_Design_Abilities_Theme_Json();
+        new Block_Design_Abilities_Global_Styles();
         new Block_Design_Abilities_Patterns();
     }
 

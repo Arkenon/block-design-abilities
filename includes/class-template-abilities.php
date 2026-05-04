@@ -2,16 +2,16 @@
 defined('ABSPATH') || exit;
 
 /**
- * Block Design Abilities – Template yetenekleri.
+ * Block Design Abilities – Template abilities.
  *
- * WordPress Abilities API'ye blok tema şablonu yönetimi için üç yetenek kaydeder:
+ * Registers three abilities for block theme template management to the WordPress Abilities API:
  * list-templates, get-template, add-or-update-template.
  *
- * Şablonlar iki kaynaktan gelebilir:
- *  - Tema dosyası : Henüz veritabanına kaydedilmemiş, slug ile erişilir.
- *  - Veritabanı   : wp_template CPT olarak kayıtlı, post_id ile güncellenir.
+ * Templates can come from two sources:
+ *  - Theme file : Not yet saved to the database, accessed via slug.
+ *  - Database   : Registered as wp_template CPT, updated via post_id.
  *
- * İzin gereksinimi: edit_theme_options.
+ * Permission requirement: edit_theme_options.
  *
  * @package Block_Design_Abilities
  * @since   1.0.0
@@ -19,8 +19,8 @@ defined('ABSPATH') || exit;
 class Block_Design_Abilities_Templates
 {
     /**
-     * Sınıfı başlatır; wp_abilities_api_init kancasını dinleyen tüm
-     * yetenek kayıt metodlarını bağlar.
+     * Initializes the class; binds all ability registration methods
+     * listening to the wp_abilities_api_init hook.
      */
     public function __construct()
     {
@@ -30,10 +30,10 @@ class Block_Design_Abilities_Templates
     }
 
     /**
-     * 'block-design-abilities/list-templates' yeteneğini Abilities API'ye kaydeder.
+     * Registers the 'block-design-abilities/list-templates' ability to the Abilities API.
      *
-     * Yetenek parametre almaz; aktif temanın tüm şablonlarını slug, title
-     * ve (varsa) post_id bilgileriyle döndürür.
+     * The ability takes no parameters; it returns all templates of the active theme
+     * along with slug, title, and (if available) post_id information.
      *
      * @return void
      */
@@ -91,12 +91,12 @@ class Block_Design_Abilities_Templates
     }
 
     /**
-     * Aktif temanın tüm blok şablonlarını listeler.
+     * Lists all block templates of the active theme.
      *
-     * get_block_templates() fonksiyonu mevcut değilse boş dizi döner.
-     * Veritabanına kaydedilmiş şablonlarda post_id alanı bulunur; yalnızca
-     * tema dosyasından okunanlar için bu alan eklenmez.
-     * Sonuç slug değerine göre alfabetik sıralanır.
+     * Returns an empty array if get_block_templates() function is not available.
+     * Templates saved to the database will have a post_id field; this field
+     * is not included for those read only from theme files.
+     * Results are sorted alphabetically by slug.
      *
      * @return array{
      *     theme?:     string,
@@ -144,11 +144,11 @@ class Block_Design_Abilities_Templates
     }
 
     /**
-     * 'block-design-abilities/get-template' yeteneğini Abilities API'ye kaydeder.
+     * Registers the 'block-design-abilities/get-template' ability to the Abilities API.
      *
-     * Yetenek; slug (zorunlu) parametresini kabul eder ve şablonun
-     * ayrıştırılmış blok dizisini döndürür.
-     * Şablon bulunamazsa boş blok dizisi döner.
+     * The ability accepts a slug (required) parameter and returns the
+     * parsed block array of the template.
+     * Returns an empty block array if the template is not found.
      *
      * @return void
      */
@@ -192,16 +192,16 @@ class Block_Design_Abilities_Templates
     }
 
     /**
-     * Tek bir şablonu ayrıştırılmış blok dizisi olarak döndürür.
+     * Returns a single template as a parsed block array.
      *
-     * Şablon ID'si "tema-slug//template-slug" formatında oluşturularak
-     * get_block_template() ile çekilir. İçerik parse_blocks() ile ayrıştırılır;
-     * blockName değeri boş olan düğümler sonuçtan çıkarılır.
-     * post_id, yalnızca şablon veritabanına kaydedilmişse döndürülür.
+     * The template ID is formed in "theme-slug//template-slug" format and
+     * fetched using get_block_template(). Content is parsed using parse_blocks();
+     * nodes with empty blockName are removed from the result.
+     * post_id is returned only if the template is saved to the database.
      *
      * @param array{
      *     slug: string,
-     * } $input Yetenek giriş parametreleri.
+     * } $input Ability input parameters.
      *
      * @return array{
      *     slug?:    string,
@@ -251,10 +251,10 @@ class Block_Design_Abilities_Templates
     }
 
     /**
-     * 'block-design-abilities/add-or-update-template' yeteneğini Abilities API'ye kaydeder.
+     * Registers the 'block-design-abilities/add-or-update-template' ability to the Abilities API.
      *
-     * Yetenek; blocks (zorunlu), post_id veya slug (birini seçmeli)
-     * parametrelerini kabul eder. post_id ve slug aynı anda verilemez.
+     * The ability accepts blocks (required), post_id, or slug (must choose one)
+     * parameters. post_id and slug cannot be provided at the same time.
      *
      * @return void
      */
@@ -309,19 +309,19 @@ class Block_Design_Abilities_Templates
     }
 
     /**
-     * Bir şablonu kaydeder veya günceller.
+     * Saves or updates a template.
      *
-     * - post_id sağlanırsa: mevcut wp_template gönderisi wp_update_post() ile güncellenir.
-     * - slug sağlanırsa: tema dosyasındaki şablon ilk kez veritabanına kopyalanır
-     *   (wp_insert_post), böylece tema güncellemelerinden bağımsız bir DB kaydı oluşur.
-     * - Her iki parametre aynı anda verilirse hata döner.
-     * - Blok dizisi serialize_block() ile serileştirilir; boş sonuç hata döndürür.
+     * - If post_id is provided: existing wp_template post is updated using wp_update_post().
+     * - If slug is provided: the template from the theme file is copied to the database
+     *   for the first time (wp_insert_post), creating a DB record independent of theme updates.
+     * - Returns an error if both parameters are provided simultaneously.
+     * - The block array is serialized using serialize_block(); empty result returns an error.
      *
      * @param array{
      *     blocks:   array<int, array<string, mixed>>,
      *     post_id?: int,
      *     slug?:    string,
-     * } $input Yetenek giriş parametreleri.
+     * } $input Ability input parameters.
      *
      * @return array{
      *     success:  bool,

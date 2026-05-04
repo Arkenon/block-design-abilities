@@ -13,8 +13,8 @@ A WordPress Abilities API plugin for creating and modifying block templates, pag
 
 | Requirement | Minimum Version |
 |---|---|
-| WordPress | 7.0+ |
-| PHP | 8.0+ |
+| WordPress | 6.9+ |
+| PHP | 7.4+ |
 | Block Theme | Required |
 
 Multisite network compatible.
@@ -38,7 +38,7 @@ This plugin is built on top of the WordPress Abilities API. It exposes abilities
 | `Block_Design_Abilities_Templates` | 3 | Block Templates (`wp_template`) |
 | `Block_Design_Abilities_Posts` | 3 | Posts and Pages |
 | `Block_Design_Abilities_Patterns` | 5 | Block Patterns (`wp_block`) |
-| `Block_Design_Abilities_Theme_Json` | 1 | Design Tokens (theme.json) |
+| `Block_Design_Abilities_Global_Styles` | 1 | Design Tokens (theme.json) |
 
 ---
 

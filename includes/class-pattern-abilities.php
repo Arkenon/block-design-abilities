@@ -2,14 +2,14 @@
 defined('ABSPATH') || exit;
 
 /**
- * Block Design Abilities – Pattern yetenekleri.
+ * Block Design Abilities – Pattern abilities.
  *
- * WordPress Abilities API'ye pattern ile ilgili beş yetenek kaydeder:
+ * Registers five pattern-related abilities to the WordPress Abilities API:
  * list-patterns, get-pattern, update-pattern, duplicate-pattern, create-pattern.
  *
- * Desteklenen kaynak türleri:
- *  - registry : Tema/eklenti tarafından PHP ile kaydedilen, salt okunur pattern'ler.
- *  - database  : wp_block CPT olarak veritabanında depolanan, düzenlenebilir pattern'ler.
+ * Supported source types:
+ *  - registry : Read-only patterns registered via PHP by the theme/plugin.
+ *  - database : Editable patterns stored in the database as wp_block CPT.
  *
  * @package Block_Design_Abilities
  * @since   1.0.0
@@ -17,8 +17,8 @@ defined('ABSPATH') || exit;
 class Block_Design_Abilities_Patterns
 {
     /**
-     * Sınıfı başlatır; wp_abilities_api_init kancasını dinleyen tüm
-     * yetenek kayıt metodlarını bağlar.
+     * Initializes the class; binds all ability registration methods
+     * listening to the wp_abilities_api_init hook.
      */
     public function __construct()
     {
@@ -30,10 +30,10 @@ class Block_Design_Abilities_Patterns
     }
 
     /**
-     * 'block-design-abilities/list-patterns' yeteneğini Abilities API'ye kaydeder.
+     * Registers the 'block-design-abilities/list-patterns' ability to the Abilities API.
      *
-     * Yetenek; source, category ve search parametrelerini kabul eder,
-     * sonuç olarak registry ve database pattern listelerini döndürür.
+     * The ability accepts source, category, and search parameters,
+     * and returns registry and database pattern lists as results.
      *
      * @return void
      */
@@ -90,17 +90,17 @@ class Block_Design_Abilities_Patterns
     }
 
     /**
-     * Pattern listesini döndürür.
+     * Returns the pattern list.
      *
-     * Kaynak türüne göre WP_Block_Patterns_Registry'den (registry) ve/veya
-     * wp_block CPT sorgusundan (database) pattern'leri toplar. "core/" önekli
-     * registry pattern'leri her zaman hariç tutulur.
+     * Collects patterns from WP_Block_Patterns_Registry (registry) and/or
+     * wp_block CPT query (database) based on the source type. Registry patterns
+     * prefixed with "core/" are always excluded.
      *
      * @param array{
      *     source?:   string,
      *     category?: string,
      *     search?:   string,
-     * } $input Yetenek giriş parametreleri.
+     * } $input Ability input parameters.
      *
      * @return array{
      *     success:           bool,
@@ -191,10 +191,10 @@ class Block_Design_Abilities_Patterns
     }
 
     /**
-     * 'block-design-abilities/get-pattern' yeteneğini Abilities API'ye kaydeder.
+     * Registers the 'block-design-abilities/get-pattern' ability to the Abilities API.
      *
-     * Yetenek; source (zorunlu), slug veya post_id parametrelerini kabul eder,
-     * sonuç olarak ayrıştırılmış blok dizisini döndürür.
+     * The ability accepts source (required), slug, or post_id parameters,
+     * and returns the parsed block array as a result.
      *
      * @return void
      */
@@ -257,18 +257,18 @@ class Block_Design_Abilities_Patterns
     }
 
     /**
-     * Tek bir pattern'i ayrıştırılmış blok dizisi olarak döndürür.
+     * Returns a single pattern as a parsed block array.
      *
-     * source="registry" ise slug ile WP_Block_Patterns_Registry'den,
-     * source="database" ise post_id ile wp_block gönderisinden çeker.
-     * İçerik parse_blocks() ile ayrıştırılır; blockName değeri boş olan
-     * düğümler (yorum blokları vb.) sonuçtan çıkarılır.
+     * Fetches from WP_Block_Patterns_Registry if source="registry" with slug,
+     * or from wp_block post if source="database" with post_id.
+     * Content is parsed using parse_blocks(); nodes with empty blockName
+     * (comment blocks, etc.) are removed from the result.
      *
      * @param array{
      *     source:   string,
      *     slug?:    string,
      *     post_id?: int,
-     * } $input Yetenek giriş parametreleri.
+     * } $input Ability input parameters.
      *
      * @return array{
      *     success:      bool,
@@ -356,11 +356,11 @@ class Block_Design_Abilities_Patterns
     }
 
     /**
-     * 'block-design-abilities/update-pattern' yeteneğini Abilities API'ye kaydeder.
+     * Registers the 'block-design-abilities/update-pattern' ability to the Abilities API.
      *
-     * Yetenek; post_id ve blocks (zorunlu), title (isteğe bağlı)
-     * parametrelerini kabul eder. Yalnızca wp_block türündeki gönderiler
-     * güncellenebilir; registry pattern'leri salt okunurdur.
+     * The ability accepts post_id and blocks (required), and title (optional)
+     * parameters. Only posts of type wp_block can be updated;
+     * registry patterns are read-only.
      *
      * @return void
      */
@@ -418,17 +418,17 @@ class Block_Design_Abilities_Patterns
     }
 
     /**
-     * Veritabanındaki bir pattern'i (wp_block) günceller.
+     * Updates a pattern (wp_block) in the database.
      *
-     * Gelen blok dizisi serialize_block() ile serileştirilir ve
-     * wp_update_post() ile gönderi içeriğinin yerine yazılır.
-     * Boş serileştirme sonucu hata döndürür.
+     * The incoming block array is serialized using serialize_block() and
+     * overwrites the post content using wp_update_post().
+     * Returns an error if serialization results in empty content.
      *
      * @param array{
      *     post_id: int,
      *     blocks:  array<int, array<string, mixed>>,
      *     title?:  string,
-     * } $input Yetenek giriş parametreleri.
+     * } $input Ability input parameters.
      *
      * @return array{
      *     success:      bool,
@@ -490,11 +490,10 @@ class Block_Design_Abilities_Patterns
     }
 
     /**
-     * 'block-design-abilities/duplicate-pattern' yeteneğini Abilities API'ye kaydeder.
+     * Registers the 'block-design-abilities/duplicate-pattern' ability to the Abilities API.
      *
-     * Yetenek; slug (zorunlu), title ve sync_status (isteğe bağlı)
-     * parametrelerini kabul eder. Registry pattern'ini bir wp_block gönderisine
-     * kopyalayarak düzenlenebilir hale getirir.
+     * The ability accepts slug (required), title, and sync_status (optional)
+     * parameters. Makes a registry pattern editable by copying it to a wp_block post.
      *
      * @return void
      */
@@ -555,18 +554,18 @@ class Block_Design_Abilities_Patterns
     }
 
     /**
-     * Salt okunur bir registry pattern'ini veritabanına (wp_block) kopyalar.
+     * Copies a read-only registry pattern into the database (wp_block).
      *
-     * Kopyalama sırasında orijinal içerik olduğu gibi aktarılır; başlık
-     * belirtilmezse orijinal başlığa " (Copy)" eki eklenir. Kategoriler
-     * wp_pattern_category taksonomisine atanır. sync_status meta değeri
-     * istenirse "unsynced" olarak kaydedilir.
+     * During copying, the original content is transferred as is; if no title
+     * is specified, " (Copy)" is appended to the original title. Categories
+     * are assigned to the wp_pattern_category taxonomy. sync_status meta value
+     * is saved as "unsynced" if requested.
      *
      * @param array{
      *     slug:         string,
      *     title?:       string,
      *     sync_status?: string,
-     * } $input Yetenek giriş parametreleri.
+     * } $input Ability input parameters.
      *
      * @return array{
      *     success?:            bool,
@@ -635,11 +634,11 @@ class Block_Design_Abilities_Patterns
     }
 
     /**
-     * 'block-design-abilities/create-pattern' yeteneğini Abilities API'ye kaydeder.
+     * Registers the 'block-design-abilities/create-pattern' ability to the Abilities API.
      *
-     * Yetenek; title ve blocks (zorunlu), description, categories ve
-     * sync_status (isteğe bağlı) parametrelerini kabul eder. Oluşturulan
-     * pattern Site Editor > "My Patterns" bölümünde görünür.
+     * The ability accepts title and blocks (required), description, categories, and
+     * sync_status (optional) parameters. Created pattern appears in
+     * Site Editor > "My Patterns" section.
      *
      * @return void
      */
@@ -712,12 +711,12 @@ class Block_Design_Abilities_Patterns
     }
 
     /**
-     * Sıfırdan yeni bir wp_block pattern oluşturur.
+     * Creates a new wp_block pattern from scratch.
      *
-     * Blok dizisi serialize_block() ile serileştirilir ve wp_insert_post()
-     * ile veritabanına kaydedilir. Belirtilen kategori slug'ları
-     * wp_pattern_category taksonomisinde yoksa otomatik olarak oluşturulur.
-     * Boş serileştirme sonucu hata döndürür.
+     * The block array is serialized using serialize_block() and saved to the
+     * database using wp_insert_post(). If the specified category slugs do not
+     * exist in the wp_pattern_category taxonomy, they are created automatically.
+     * Returns an error if serialization results in empty content.
      *
      * @param array{
      *     title:        string,
@@ -725,7 +724,7 @@ class Block_Design_Abilities_Patterns
      *     description?: string,
      *     categories?:  string[],
      *     sync_status?: string,
-     * } $input Yetenek giriş parametreleri.
+     * } $input Ability input parameters.
      *
      * @return array{
      *     success?:            bool,
@@ -777,7 +776,7 @@ class Block_Design_Abilities_Patterns
             foreach ($categories as $cat_slug) {
                 $term = get_term_by('slug', $cat_slug, 'wp_pattern_category');
                 if (! $term) {
-                    // Kategori yoksa oluştur
+                    // Create category if it doesn't exist
                     $new_term = wp_insert_term(
                         ucwords(str_replace('-', ' ', $cat_slug)),
                         'wp_pattern_category',

@@ -2,13 +2,13 @@
 defined('ABSPATH') || exit;
 
 /**
- * Block Design Abilities – Post/Page yetenekleri.
+ * Block Design Abilities – Post/Page abilities.
  *
- * WordPress Abilities API'ye gönderi ve sayfa yönetimi için üç yetenek kaydeder:
+ * Registers three abilities for post and page management to the WordPress Abilities API:
  * list-posts, get-post, update-post.
  *
- * Desteklenen gönderi türleri: post, page.
- * wp_block (pattern) veya template türleri bu sınıf tarafından ele alınmaz.
+ * Supported post types: post, page.
+ * wp_block (pattern) or template types are not handled by this class.
  *
  * @package Block_Design_Abilities
  * @since   1.0.0
@@ -16,8 +16,8 @@ defined('ABSPATH') || exit;
 class Block_Design_Abilities_Posts
 {
     /**
-     * Sınıfı başlatır; wp_abilities_api_init kancasını dinleyen tüm
-     * yetenek kayıt metodlarını bağlar.
+     * Initializes the class; binds all ability registration methods
+     * listening to the wp_abilities_api_init hook.
      */
     public function __construct()
     {
@@ -27,11 +27,10 @@ class Block_Design_Abilities_Posts
     }
 
     /**
-     * 'block-design-abilities/list-posts' yeteneğini Abilities API'ye kaydeder.
+     * Registers the 'block-design-abilities/list-posts' ability to the Abilities API.
      *
-     * Yetenek; post_type, posts_per_page, paged, s, orderby ve order
-     * parametrelerini kabul eder. Sayfalama bilgisiyle birlikte gönderi
-     * listesi döndürür.
+     * The ability accepts post_type, posts_per_page, paged, s, orderby, and order
+     * parameters. Returns a post list along with pagination information.
      *
      * @return void
      */
@@ -104,11 +103,11 @@ class Block_Design_Abilities_Posts
     }
 
     /**
-     * Gönderi/sayfa listesini sayfalı olarak döndürür.
+     * Returns the post/page list with pagination.
      *
-     * post_type="any" verildiğinde hem post hem page türleri sorgulanır.
-     * posts_per_page değeri maksimum 50 ile sınırlandırılır. Sonuç yoksa
-     * boş dizi ve sıfır totalli bir sayfalama nesnesi döndürülür.
+     * When post_type="any" is provided, both post and page types are queried.
+     * posts_per_page value is limited to a maximum of 50. If no results are found,
+     * an empty array and a pagination object with zero totals are returned.
      *
      * @param array{
      *     post_type?:      string,
@@ -117,7 +116,7 @@ class Block_Design_Abilities_Posts
      *     s?:              string,
      *     orderby?:        string,
      *     order?:          string,
-     * } $input Yetenek giriş parametreleri.
+     * } $input Ability input parameters.
      *
      * @return array{
      *     success:    bool,
@@ -199,11 +198,11 @@ class Block_Design_Abilities_Posts
     }
 
     /**
-     * 'block-design-abilities/get-post' yeteneğini Abilities API'ye kaydeder.
+     * Registers the 'block-design-abilities/get-post' ability to the Abilities API.
      *
-     * Yetenek; post_id (zorunlu) parametresini kabul eder ve ayrıştırılmış
-     * blok dizisini döndürür. Yalnızca post ve page türleri desteklenir;
-     * template türleri için get-template kullanılmalıdır.
+     * The ability accepts post_id (required) parameter and returns the
+     * parsed block array. Only post and page types are supported;
+     * get-template should be used for template types.
      *
      * @return void
      */
@@ -252,15 +251,15 @@ class Block_Design_Abilities_Posts
     }
 
     /**
-     * Tek bir gönderi veya sayfayı ayrıştırılmış blok dizisi olarak döndürür.
+     * Returns a single post or page as a parsed block array.
      *
-     * İçerik parse_blocks() ile ayrıştırılır; blockName değeri boş olan
-     * düğümler (boşluk blokları vb.) sonuçtan çıkarılır. post ve page
-     * dışındaki türler reddedilir.
+     * Content is parsed using parse_blocks(); nodes with empty blockName
+     * (whitespace blocks, etc.) are removed from the result.
+     * Types other than post and page are rejected.
      *
      * @param array{
      *     post_id: int,
-     * } $input Yetenek giriş parametreleri.
+     * } $input Ability input parameters.
      *
      * @return array{
      *     success:      bool,
@@ -314,11 +313,11 @@ class Block_Design_Abilities_Posts
     }
 
     /**
-     * 'block-design-abilities/update-post' yeteneğini Abilities API'ye kaydeder.
+     * Registers the 'block-design-abilities/update-post' ability to the Abilities API.
      *
-     * Yetenek; post_id ve blocks (zorunlu), title (isteğe bağlı)
-     * parametrelerini kabul eder. Yalnızca post ve page türleri
-     * güncellenebilir; template türleri için update-template kullanılmalıdır.
+     * The ability accepts post_id and blocks (required), and title (optional)
+     * parameters. Only post and page types can be updated;
+     * update-template should be used for template types.
      *
      * @return void
      */
@@ -376,18 +375,18 @@ class Block_Design_Abilities_Posts
     }
 
     /**
-     * Bir gönderi veya sayfanın blok içeriğini günceller.
+     * Updates the block content of a post or page.
      *
-     * Gelen blok dizisi serialize_block() ile serileştirilir ve
-     * wp_update_post() ile gönderi içeriğinin yerine yazılır.
-     * Boş serileştirme sonucu hata döndürür. title sağlanırsa başlık
-     * da güncellenir.
+     * The incoming block array is serialized using serialize_block() and
+     * overwrites the post content using wp_update_post().
+     * Returns an error if serialization results in empty content. If title
+     * is provided, the title is also updated.
      *
      * @param array{
      *     post_id: int,
      *     blocks:  array<int, array<string, mixed>>,
      *     title?:  string,
-     * } $input Yetenek giriş parametreleri.
+     * } $input Ability input parameters.
      *
      * @return array{
      *     success:    bool,
