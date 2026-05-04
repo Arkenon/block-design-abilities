@@ -212,7 +212,7 @@ class Block_Design_Abilities_Posts
             'block-design-abilities/get-post',
             array(
                 'label'       => __('Get Post or Page', 'block-design-abilities'),
-                'description' => __('Returns a post/page block structure by post_id. Use list-posts to find post_id first. Edit the returned blocks and pass them to update-post.', 'block-design-abilities'),
+                'description' => __('Returns a post/page raw block markup as html by post_id. Use list-posts to find post_id first. The returned html can be modified and passed straight back to update-post as the html parameter.', 'block-design-abilities'),
                 'category'    => 'block-design-abilities',
 
                 'input_schema' => array(
@@ -229,15 +229,14 @@ class Block_Design_Abilities_Posts
                 'output_schema' => array(
                     'type'       => 'object',
                     'properties' => array(
-                        'success'     => array('type' => 'boolean'),
-                        'post_id'     => array('type' => 'integer'),
-                        'post_name'   => array('type' => 'string'),
-                        'title'       => array('type' => 'string'),
-                        'post_type'   => array('type' => 'string'),
-                        'url'         => array('type' => 'string'),
-                        'blocks'      => array('type' => 'array'),
-                        'block_count' => array('type' => 'integer'),
-                        'error'       => array('type' => 'string'),
+                        'success'   => array('type' => 'boolean'),
+                        'post_id'   => array('type' => 'integer'),
+                        'post_name' => array('type' => 'string'),
+                        'title'     => array('type' => 'string'),
+                        'post_type' => array('type' => 'string'),
+                        'url'       => array('type' => 'string'),
+                        'html'      => array('type' => 'string'),
+                        'error'     => array('type' => 'string'),
                     ),
                 ),
 
@@ -251,10 +250,10 @@ class Block_Design_Abilities_Posts
     }
 
     /**
-     * Returns a single post or page as a parsed block array.
+     * Returns a single post or page as raw block markup (html).
      *
-     * Content is parsed using parse_blocks(); nodes with empty blockName
-     * (whitespace blocks, etc.) are removed from the result.
+     * The raw serialized block markup is returned as-is so it can be passed
+     * back to update-post as the html parameter for round-trip editing.
      * Types other than post and page are rejected.
      *
      * @param array{
@@ -262,15 +261,14 @@ class Block_Design_Abilities_Posts
      * } $input Ability input parameters.
      *
      * @return array{
-     *     success:      bool,
-     *     post_id?:     int,
-     *     post_name?:   string,
-     *     title?:       string,
-     *     post_type?:   string,
-     *     url?:         string,
-     *     blocks?:      array<int, array<string, mixed>>,
-     *     block_count?: int,
-     *     error?:       string,
+     *     success:    bool,
+     *     post_id?:   int,
+     *     post_name?: string,
+     *     title?:     string,
+     *     post_type?: string,
+     *     url?:       string,
+     *     html?:      string,
+     *     error?:     string,
      * }
      */
     public function get_post(array $input): array
@@ -289,26 +287,14 @@ class Block_Design_Abilities_Posts
             );
         }
 
-        $raw_content = $post->post_content;
-
-        $parsed_blocks = parse_blocks($raw_content);
-
-        // Remove whitespace-only blocks
-        $parsed_blocks = array_values(
-            array_filter($parsed_blocks, function ($block) {
-                return ! empty($block['blockName']);
-            })
-        );
-
         return array(
-            'success'     => true,
-            'post_id'     => $post->ID,
-            'post_name'   => $post->post_name,
-            'title'       => $post->post_title,
-            'post_type'   => $post->post_type,
-            'url'         => get_permalink($post->ID),
-            'blocks'      => $parsed_blocks,
-            'block_count' => count($parsed_blocks),
+            'success'   => true,
+            'post_id'   => $post->ID,
+            'post_name' => $post->post_name,
+            'title'     => $post->post_title,
+            'post_type' => $post->post_type,
+            'url'       => get_permalink($post->ID),
+            'html'      => $post->post_content,
         );
     }
 
@@ -327,12 +313,12 @@ class Block_Design_Abilities_Posts
             'block-design-abilities/update-post',
             array(
                 'label'       => __('Update Post or Page', 'block-design-abilities'),
-                'description' => __('Saves content to a post/page. Provide html (preferred — avoids block validation errors) or a blocks array, along with post_id.', 'block-design-abilities'),
+                'description' => __('Saves content to a post/page. Provide post_id and html. The html is converted to blocks server-side, avoiding innerHTML/attributes validation errors.', 'block-design-abilities'),
                 'category'    => 'block-design-abilities',
 
                 'input_schema' => array(
                     'type'       => 'object',
-                    'required'   => array('post_id'),
+                    'required'   => array('post_id', 'html'),
                     'properties' => array(
 
                         'post_id' => array(
@@ -342,13 +328,7 @@ class Block_Design_Abilities_Posts
 
                         'html' => array(
                             'type'        => 'string',
-                            'description' => __('Raw HTML content. Automatically converted to blocks — preferred over blocks parameter because it prevents innerHTML/attributes mismatches that cause block validation errors. Provide html or blocks, not both.', 'block-design-abilities'),
-                        ),
-
-                        'blocks' => array(
-                            'type'        => 'array',
-                            'description' => __('Full updated block array from get-post. Use html instead to avoid block validation errors. Replaces existing content entirely.', 'block-design-abilities'),
-                            'items'       => array('type' => 'object'),
+                            'description' => __('Post/page markup. Accepts raw HTML (will be converted to blocks) or serialized block markup returned by get-post (round-trip). Replaces existing content entirely.', 'block-design-abilities'),
                         ),
 
                         'title' => array(
@@ -362,11 +342,11 @@ class Block_Design_Abilities_Posts
                 'output_schema' => array(
                     'type'       => 'object',
                     'properties' => array(
-                        'success'            => array('type' => 'boolean'),
-                        'post_id'            => array('type' => 'integer'),
-                        'post_type'          => array('type' => 'string'),
-                        'url'                => array('type' => 'string'),
-                        'error'              => array('type' => 'string'),
+                        'success'   => array('type' => 'boolean'),
+                        'post_id'   => array('type' => 'integer'),
+                        'post_type' => array('type' => 'string'),
+                        'url'       => array('type' => 'string'),
+                        'error'     => array('type' => 'string'),
                     ),
                 ),
 
@@ -382,14 +362,15 @@ class Block_Design_Abilities_Posts
     /**
      * Updates the block content of a post or page.
      *
-     * The incoming block array is serialized using serialize_block() and
-     * overwrites the post content using wp_update_post().
+     * The html input is converted to blocks via Block_Design_Abilities::resolve_blocks()
+     * (which routes serialized block markup through parse_blocks() and raw HTML through
+     * the html-to-blocks converter), then re-serialized and saved as post_content.
      * Returns an error if serialization results in empty content. If title
      * is provided, the title is also updated.
      *
      * @param array{
      *     post_id: int,
-     *     blocks:  array<int, array<string, mixed>>,
+     *     html:    string,
      *     title?:  string,
      * } $input Ability input parameters.
      *
@@ -454,10 +435,10 @@ class Block_Design_Abilities_Posts
         }
 
         return array(
-            'success'            => true,
-            'post_id'            => $post_id,
-            'post_type'          => $post->post_type,
-            'url'                => get_permalink($post_id)
+            'success'   => true,
+            'post_id'   => $post_id,
+            'post_type' => $post->post_type,
+            'url'       => get_permalink($post_id),
         );
     }
 }

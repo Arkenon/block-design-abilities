@@ -158,7 +158,7 @@ class Block_Design_Abilities_Templates
             'block-design-abilities/get-template',
             array(
                 'label'       => __('Get Template', 'block-design-abilities'),
-                'description' => __('Returns a template\'s block structure by slug. Use list-templates first to get slugs. Edit the returned blocks and pass them to update-template.', 'block-design-abilities'),
+                'description' => __('Returns a template\'s raw block markup as html by slug. Use list-templates first to get slugs. The returned html can be modified and passed straight back to add-or-update-template as the html parameter.', 'block-design-abilities'),
                 'category'    => 'block-design-abilities',
 
                 'input_schema' => array(
@@ -175,10 +175,10 @@ class Block_Design_Abilities_Templates
                 'output_schema' => array(
                     'type'       => 'object',
                     'properties' => array(
-                        'slug'        => array('type' => 'string'),
-                        'title'       => array('type' => 'string'),
-                        'post_id'     => array('type' => 'integer'),
-                        'blocks'      => array('type' => 'array'),
+                        'slug'    => array('type' => 'string'),
+                        'title'   => array('type' => 'string'),
+                        'post_id' => array('type' => 'integer'),
+                        'html'    => array('type' => 'string'),
                     ),
                 ),
 
@@ -192,11 +192,12 @@ class Block_Design_Abilities_Templates
     }
 
     /**
-     * Returns a single template as a parsed block array.
+     * Returns a single template as raw block markup (html).
      *
      * The template ID is formed in "theme-slug//template-slug" format and
-     * fetched using get_block_template(). Content is parsed using parse_blocks();
-     * nodes with empty blockName are removed from the result.
+     * fetched using get_block_template(). The raw serialized block markup is
+     * returned as-is so it can be passed back to add-or-update-template as the
+     * html parameter for round-trip editing.
      * post_id is returned only if the template is saved to the database.
      *
      * @param array{
@@ -207,7 +208,7 @@ class Block_Design_Abilities_Templates
      *     slug?:    string,
      *     title?:   string,
      *     post_id?: int,
-     *     blocks:   array<int, array<string, mixed>>,
+     *     html:     string,
      * }
      */
     public function get_template(array $input): array
@@ -221,25 +222,14 @@ class Block_Design_Abilities_Templates
 
         if (! $template) {
             return array(
-                'blocks' => array()
+                'html' => '',
             );
         }
 
-        $raw_content = $template->content;
-
-        $parsed_blocks = parse_blocks($raw_content);
-
-        // Remove whitespace-only blocks
-        $parsed_blocks = array_values(
-            array_filter($parsed_blocks, function ($block) {
-                return ! empty($block['blockName']);
-            })
-        );
-
         $result = array(
-            'slug'        => $template->slug,
-            'title'       => $template->title,        
-            'blocks'      => $parsed_blocks        
+            'slug'  => $template->slug,
+            'title' => $template->title,
+            'html'  => $template->content,
         );
 
         // Only add post_id if the template has a DB record
@@ -264,12 +254,12 @@ class Block_Design_Abilities_Templates
             'block-design-abilities/add-or-update-template',
             array(
                 'label'       => __('Add or Update Template', 'block-design-abilities'),
-                'description' => __('Saves content to a template. Provide html (preferred — avoids block validation errors) or a blocks array, along with post_id or slug (not both).', 'block-design-abilities'),
+                'description' => __('Saves content to a template. Provide html and either post_id or slug (not both). The html is converted to blocks server-side, avoiding innerHTML/attributes validation errors.', 'block-design-abilities'),
                 'category'    => 'block-design-abilities',
 
                 'input_schema' => array(
                     'type'       => 'object',
-                    'required'   => array(),
+                    'required'   => array('html'),
                     'properties' => array(
 
                         'post_id' => array(
@@ -284,12 +274,7 @@ class Block_Design_Abilities_Templates
 
                         'html' => array(
                             'type'        => 'string',
-                            'description' => __('Raw HTML content. Automatically converted to blocks — preferred over blocks parameter because it prevents innerHTML/attributes mismatches that cause block validation errors. Provide html or blocks, not both.', 'block-design-abilities'),
-                        ),
-
-                        'blocks' => array(
-                            'type'        => 'array',
-                            'description' => __('Full updated block array. Use html instead to avoid block validation errors. Same structure as returned by get-template. Replaces template content entirely.', 'block-design-abilities')
+                            'description' => __('Template markup. Accepts raw HTML (will be converted to blocks) or serialized block markup returned by get-template (round-trip). Replaces template content entirely.', 'block-design-abilities'),
                         ),
 
                     ),
@@ -298,9 +283,9 @@ class Block_Design_Abilities_Templates
                 'output_schema' => array(
                     'type'       => 'object',
                     'properties' => array(
-                        'success'            => array('type' => 'boolean'),
-                        'error'              => array('type' => 'string'),
-                        'post_id'            => array('type' => 'integer'),
+                        'success' => array('type' => 'boolean'),
+                        'error'   => array('type' => 'string'),
+                        'post_id' => array('type' => 'integer'),
                     ),
                 ),
 
@@ -320,10 +305,11 @@ class Block_Design_Abilities_Templates
      * - If slug is provided: the template from the theme file is copied to the database
      *   for the first time (wp_insert_post), creating a DB record independent of theme updates.
      * - Returns an error if both parameters are provided simultaneously.
-     * - The block array is serialized using serialize_block(); empty result returns an error.
+     * - The html input is converted to blocks via Block_Design_Abilities::resolve_blocks(),
+     *   re-serialized with serialize_block(); empty result returns an error.
      *
      * @param array{
-     *     blocks:   array<int, array<string, mixed>>,
+     *     html:     string,
      *     post_id?: int,
      *     slug?:    string,
      * } $input Ability input parameters.
@@ -431,8 +417,8 @@ class Block_Design_Abilities_Templates
         }
 
         return array(
-            'success'            => true,
-            'post_id'            => $post_id
+            'success' => true,
+            'post_id' => $post_id,
         );
     }
 }

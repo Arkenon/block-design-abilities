@@ -204,7 +204,7 @@ class Block_Design_Abilities_Patterns
             'block-design-abilities/get-pattern',
             array(
                 'label'       => __('Get Pattern', 'block-design-abilities'),
-                'description' => __('Returns a pattern\'s parsed block array. source="registry": fetch by slug (read-only). source="database": fetch by post_id (editable via update-pattern).', 'block-design-abilities'),
+                'description' => __('Returns a pattern\'s raw block markup as html. source="registry": fetch by slug (read-only). source="database": fetch by post_id (editable via update-pattern). The returned html can be modified and passed straight back to update-pattern as the html parameter.', 'block-design-abilities'),
                 'category'    => 'block-design-abilities',
 
                 'input_schema' => array(
@@ -241,8 +241,7 @@ class Block_Design_Abilities_Patterns
                         'title'       => array('type' => 'string'),
                         'sync_status' => array('type' => 'string'),
                         'is_editable' => array('type' => 'boolean'),
-                        'blocks'      => array('type' => 'array'),
-                        'block_count' => array('type' => 'integer'),
+                        'html'        => array('type' => 'string'),
                         'error'       => array('type' => 'string'),
                     ),
                 ),
@@ -257,12 +256,12 @@ class Block_Design_Abilities_Patterns
     }
 
     /**
-     * Returns a single pattern as a parsed block array.
+     * Returns a single pattern as raw block markup (html).
      *
      * Fetches from WP_Block_Patterns_Registry if source="registry" with slug,
      * or from wp_block post if source="database" with post_id.
-     * Content is parsed using parse_blocks(); nodes with empty blockName
-     * (comment blocks, etc.) are removed from the result.
+     * The raw serialized block markup is returned as-is so it can be passed
+     * back to update-pattern as the html parameter for round-trip editing.
      *
      * @param array{
      *     source:   string,
@@ -278,8 +277,7 @@ class Block_Design_Abilities_Patterns
      *     title?:       string,
      *     sync_status?: string,
      *     is_editable?: bool,
-     *     blocks?:      array<int, array<string, mixed>>,
-     *     block_count?: int,
+     *     html?:        string,
      *     error?:       string,
      * }
      */
@@ -303,17 +301,13 @@ class Block_Design_Abilities_Patterns
                 );
             }
 
-            $raw_content   = $pattern['content'];
-            $parsed_blocks = array_values(array_filter(parse_blocks($raw_content), fn($b) => ! empty($b['blockName'])));
-
             return array(
                 'success'     => true,
                 'source'      => 'registry',
                 'slug'        => $pattern['name'],
                 'title'       => $pattern['title'],
                 'is_editable' => false,
-                'blocks'      => $parsed_blocks,
-                'block_count' => count($parsed_blocks),
+                'html'        => $pattern['content'],
             );
         }
 
@@ -333,9 +327,6 @@ class Block_Design_Abilities_Patterns
                 );
             }
 
-            $raw_content   = $post->post_content;
-            $parsed_blocks = array_values(array_filter(parse_blocks($raw_content), fn($b) => ! empty($b['blockName'])));
-
             $sync_meta   = get_post_meta($post->ID, 'wp_pattern_sync_status', true);
             $sync_status = ($sync_meta === 'unsynced') ? 'unsynced' : 'synced';
 
@@ -347,8 +338,7 @@ class Block_Design_Abilities_Patterns
                 'title'       => $post->post_title,
                 'sync_status' => $sync_status,
                 'is_editable' => true,
-                'blocks'      => $parsed_blocks,
-                'block_count' => count($parsed_blocks),
+                'html'        => $post->post_content,
             );
         }
 
@@ -370,12 +360,12 @@ class Block_Design_Abilities_Patterns
             'block-design-abilities/update-pattern',
             array(
                 'label'       => __('Update Pattern', 'block-design-abilities'),
-                'description' => __('Updates a database pattern (wp_block). Provide html (preferred — avoids block validation errors) or a blocks array, along with post_id.', 'block-design-abilities'),
+                'description' => __('Updates a database pattern (wp_block). Provide post_id and html. The html is converted to blocks server-side, avoiding innerHTML/attributes validation errors.', 'block-design-abilities'),
                 'category'    => 'block-design-abilities',
 
                 'input_schema' => array(
                     'type'     => 'object',
-                    'required' => array('post_id'),
+                    'required' => array('post_id', 'html'),
                     'properties' => array(
 
                         'post_id' => array(
@@ -385,13 +375,7 @@ class Block_Design_Abilities_Patterns
 
                         'html' => array(
                             'type'        => 'string',
-                            'description' => __('Raw HTML for the pattern. Automatically converted to blocks — preferred over blocks parameter because it prevents innerHTML/attributes mismatches that cause block validation errors. Provide html or blocks, not both.', 'block-design-abilities'),
-                        ),
-
-                        'blocks' => array(
-                            'type'        => 'array',
-                            'description' => __('Full updated block array from get-pattern. Use html instead to avoid block validation errors. Replaces existing content entirely.', 'block-design-abilities'),
-                            'items'       => array('type' => 'object'),
+                            'description' => __('Pattern markup. Accepts raw HTML (will be converted to blocks) or serialized block markup returned by get-pattern (round-trip). Replaces existing content entirely.', 'block-design-abilities'),
                         ),
 
                         'title' => array(
@@ -425,13 +409,14 @@ class Block_Design_Abilities_Patterns
     /**
      * Updates a pattern (wp_block) in the database.
      *
-     * The incoming block array is serialized using serialize_block() and
-     * overwrites the post content using wp_update_post().
+     * The html input is converted to blocks via Block_Design_Abilities::resolve_blocks()
+     * (which routes serialized block markup through parse_blocks() and raw HTML through
+     * the html-to-blocks converter), then re-serialized and saved as post_content.
      * Returns an error if serialization results in empty content.
      *
      * @param array{
      *     post_id: int,
-     *     blocks:  array<int, array<string, mixed>>,
+     *     html:    string,
      *     title?:  string,
      * } $input Ability input parameters.
      *
@@ -542,14 +527,14 @@ class Block_Design_Abilities_Patterns
                 'output_schema' => array(
                     'type'       => 'object',
                     'properties' => array(
-                        'success'            => array('type' => 'boolean'),
-                        'post_id'            => array('type' => 'integer'),
-                        'title'              => array('type' => 'string'),
-                        'slug'               => array('type' => 'string'),
-                        'sync_status'        => array('type' => 'string'),
-                        'original_slug'      => array('type' => 'string'),
-                        'serialized_content' => array('type' => 'string'),
-                        'error'              => array('type' => 'string'),
+                        'success'       => array('type' => 'boolean'),
+                        'post_id'       => array('type' => 'integer'),
+                        'title'         => array('type' => 'string'),
+                        'slug'          => array('type' => 'string'),
+                        'sync_status'   => array('type' => 'string'),
+                        'original_slug' => array('type' => 'string'),
+                        'html'          => array('type' => 'string'),
+                        'error'         => array('type' => 'string'),
                     ),
                 ),
 
@@ -577,14 +562,14 @@ class Block_Design_Abilities_Patterns
      * } $input Ability input parameters.
      *
      * @return array{
-     *     success?:            bool,
-     *     post_id?:            int,
-     *     title?:              string,
-     *     slug?:               string,
-     *     sync_status?:        string,
-     *     original_slug?:      string,
-     *     serialized_content?: string,
-     *     error?:              string,
+     *     success?:       bool,
+     *     post_id?:       int,
+     *     title?:         string,
+     *     slug?:          string,
+     *     sync_status?:   string,
+     *     original_slug? : string,
+     *     html?:          string,
+     *     error?:         string,
      * }
      */
     public function duplicate_pattern(array $input): array
@@ -632,13 +617,13 @@ class Block_Design_Abilities_Patterns
         }
 
         return array(
-            'success'            => true,
-            'post_id'            => $post_id,
-            'title'              => $title,
-            'slug'               => get_post($post_id)->post_name,
-            'sync_status'        => $sync_status,
-            'original_slug'      => $slug,
-            'serialized_content' => $content,
+            'success'       => true,
+            'post_id'       => $post_id,
+            'title'         => $title,
+            'slug'          => get_post($post_id)->post_name,
+            'sync_status'   => $sync_status,
+            'original_slug' => $slug,
+            'html'          => $content,
         );
     }
 
@@ -657,12 +642,12 @@ class Block_Design_Abilities_Patterns
             'block-design-abilities/create-pattern',
             array(
                 'label'       => __('Create Pattern', 'block-design-abilities'),
-                'description' => __('Creates a new wp_block pattern from scratch. Provide html (preferred — avoids block validation errors) or a blocks array. The pattern appears in Site Editor under "My Patterns".', 'block-design-abilities'),
+                'description' => __('Creates a new wp_block pattern from scratch. Provide title and html. The pattern appears in Site Editor under "My Patterns".', 'block-design-abilities'),
                 'category'    => 'block-design-abilities',
 
                 'input_schema' => array(
                     'type'     => 'object',
-                    'required' => array('title'),
+                    'required' => array('title', 'html'),
                     'properties' => array(
 
                         'title' => array(
@@ -677,13 +662,7 @@ class Block_Design_Abilities_Patterns
 
                         'html' => array(
                             'type'        => 'string',
-                            'description' => __('Raw HTML for the pattern. Automatically converted to blocks — preferred over blocks parameter because it prevents innerHTML/attributes mismatches that cause block validation errors. Provide html or blocks, not both.', 'block-design-abilities'),
-                        ),
-
-                        'blocks' => array(
-                            'type'        => 'array',
-                            'description' => __('Block array (WP_Block_Parser_Block format). Use html instead to avoid block validation errors. Wrap in core/group for a self-contained unit.', 'block-design-abilities'),
-                            'items'       => array('type' => 'object'),
+                            'description' => __('Pattern markup. Accepts raw HTML (will be converted to blocks) or serialized block markup (round-trip from get-pattern). Wrap in a single root element (e.g. core/group when round-tripping) for a self-contained unit.', 'block-design-abilities'),
                         ),
 
                         'categories' => array(
@@ -704,14 +683,14 @@ class Block_Design_Abilities_Patterns
                 'output_schema' => array(
                     'type'       => 'object',
                     'properties' => array(
-                        'success'            => array('type' => 'boolean'),
-                        'post_id'            => array('type' => 'integer'),
-                        'title'              => array('type' => 'string'),
-                        'slug'               => array('type' => 'string'),
-                        'sync_status'        => array('type' => 'string'),
-                        'categories'         => array('type' => 'array'),
-                        'serialized_content' => array('type' => 'string'),
-                        'error'              => array('type' => 'string'),
+                        'success'     => array('type' => 'boolean'),
+                        'post_id'     => array('type' => 'integer'),
+                        'title'       => array('type' => 'string'),
+                        'slug'        => array('type' => 'string'),
+                        'sync_status' => array('type' => 'string'),
+                        'categories'  => array('type' => 'array'),
+                        'html'        => array('type' => 'string'),
+                        'error'       => array('type' => 'string'),
                     ),
                 ),
 
@@ -727,28 +706,29 @@ class Block_Design_Abilities_Patterns
     /**
      * Creates a new wp_block pattern from scratch.
      *
-     * The block array is serialized using serialize_block() and saved to the
-     * database using wp_insert_post(). If the specified category slugs do not
-     * exist in the wp_pattern_category taxonomy, they are created automatically.
-     * Returns an error if serialization results in empty content.
+     * The html input is converted to blocks via Block_Design_Abilities::resolve_blocks(),
+     * re-serialized with serialize_block() and saved with wp_insert_post(). If the
+     * specified category slugs do not exist in the wp_pattern_category taxonomy,
+     * they are created automatically. Returns an error if serialization results
+     * in empty content.
      *
      * @param array{
      *     title:        string,
-     *     blocks:       array<int, array<string, mixed>>,
+     *     html:         string,
      *     description?: string,
      *     categories?:  string[],
      *     sync_status?: string,
      * } $input Ability input parameters.
      *
      * @return array{
-     *     success?:            bool,
-     *     post_id?:            int,
-     *     title?:              string,
-     *     slug?:               string,
-     *     sync_status?:        string,
-     *     categories?:         string[],
-     *     serialized_content?: string,
-     *     error?:              string,
+     *     success?:     bool,
+     *     post_id?:     int,
+     *     title?:       string,
+     *     slug?:        string,
+     *     sync_status?: string,
+     *     categories?:  string[],
+     *     html?:        string,
+     *     error?:       string,
      * }
      */
     public function create_pattern(array $input): array
@@ -813,13 +793,13 @@ class Block_Design_Abilities_Patterns
         }
 
         return array(
-            'success'            => true,
-            'post_id'            => $post_id,
-            'title'              => $title,
-            'slug'               => get_post($post_id)->post_name,
-            'sync_status'        => $sync_status,
-            'categories'         => $categories,
-            'serialized_content' => $serialized_content,
+            'success'     => true,
+            'post_id'     => $post_id,
+            'title'       => $title,
+            'slug'        => get_post($post_id)->post_name,
+            'sync_status' => $sync_status,
+            'categories'  => $categories,
+            'html'        => $serialized_content,
         );
     }
 }
