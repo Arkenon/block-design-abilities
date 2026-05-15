@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(Get-ChildItem -Path \"C:\\\\laragon\\\\www\\\\block-design-abilities\\\\wp-content\\\\plugins\\\\block-design-abilities\" -Filter \"*.php\" -Recurse -ErrorAction SilentlyContinue)",
+      "Bash(Select-Object -ExpandProperty FullName)",
+      "Skill(update-config)",
+      "PowerShell(Test-Path *)",
+      "mcp__block-design-mcp__mcp-adapter-discover-abilities",
+      "mcp__block-design-mcp__mcp-adapter-execute-ability",
+      "mcp__wp-blockmarkup__search_blocks",
+      "mcp__wp-blockmarkup__validate_markup"
+    ]
+  }
+}

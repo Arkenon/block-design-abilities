@@ -254,7 +254,7 @@ class Block_Design_Abilities_Templates
             'block-design-abilities/add-or-update-template',
             array(
                 'label'       => __('Add or Update Template', 'block-design-abilities'),
-                'description' => __('Saves content to a template. Provide html and either post_id or slug (not both). The html is converted to blocks server-side, avoiding innerHTML/attributes validation errors.', 'block-design-abilities'),
+                'description' => __('Saves content to a template. Provide html and either post_id or slug (not both).', 'block-design-abilities'),
                 'category'    => 'block-design-abilities',
 
                 'input_schema' => array(
@@ -274,7 +274,7 @@ class Block_Design_Abilities_Templates
 
                         'html' => array(
                             'type'        => 'string',
-                            'description' => __('Template markup. Accepts raw HTML (will be converted to blocks) or serialized block markup returned by get-template (round-trip). Replaces template content entirely.', 'block-design-abilities'),
+                            'description' => __('Serialized block markup (WordPress block comment format). Use the output of get-template for round-trip editing. Replaces template content entirely.', 'block-design-abilities'),
                         ),
 
                     ),

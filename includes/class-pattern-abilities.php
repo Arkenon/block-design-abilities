@@ -375,7 +375,7 @@ class Block_Design_Abilities_Patterns
 
                         'html' => array(
                             'type'        => 'string',
-                            'description' => __('Pattern markup. Accepts raw HTML (will be converted to blocks) or serialized block markup returned by get-pattern (round-trip). Replaces existing content entirely.', 'block-design-abilities'),
+                            'description' => __('Serialized block markup (WordPress block comment format). Use the output of get-pattern for round-trip editing. Replaces existing content entirely.', 'block-design-abilities'),
                         ),
 
                         'title' => array(
@@ -662,7 +662,7 @@ class Block_Design_Abilities_Patterns
 
                         'html' => array(
                             'type'        => 'string',
-                            'description' => __('Pattern markup. Accepts raw HTML (will be converted to blocks) or serialized block markup (round-trip from get-pattern). Wrap in a single root element (e.g. core/group when round-tripping) for a self-contained unit.', 'block-design-abilities'),
+                            'description' => __('Serialized block markup (WordPress block comment format). Use the output of get-pattern for round-trip editing.', 'block-design-abilities'),
                         ),
 
                         'categories' => array(

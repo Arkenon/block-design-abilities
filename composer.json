@@ -4,24 +4,6 @@
     "type": "wordpress-plugin",
     "license": "GPL-2.0-or-later",
     "require": {
-        "php": ">=7.4",
-        "chubes4/html-to-blocks-converter": "^0.6.12"
-    },
-    "repositories": [
-        {
-            "type": "path",
-            "url": "../html-to-blocks-converter",
-            "options": {
-                "symlink": false,
-                "versions": {
-                    "chubes4/html-to-blocks-converter": "0.6.12"
-                }
-            }
-        }
-    ],
-    "config": {
-        "allow-plugins": {
-            "composer/installers": false
-        }
+        "php": ">=7.4"
     }
 }

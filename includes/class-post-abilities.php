@@ -328,7 +328,7 @@ class Block_Design_Abilities_Posts
 
                         'html' => array(
                             'type'        => 'string',
-                            'description' => __('Post/page markup. Accepts raw HTML (will be converted to blocks) or serialized block markup returned by get-post (round-trip). Replaces existing content entirely.', 'block-design-abilities'),
+                            'description' => __('Serialized block markup (WordPress block comment format). Use the output of get-post for round-trip editing. Replaces existing content entirely.', 'block-design-abilities'),
                         ),
 
                         'title' => array(

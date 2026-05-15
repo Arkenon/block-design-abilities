@@ -21,15 +21,18 @@ Multisite network compatible.
 
 ### Dependencies
 
-[html-to-blocks-converter](https://github.com/chubes4/html-to-blocks-converter) is bundled via Composer. It converts raw HTML into properly structured Gutenberg block arrays, ensuring `attrs` and `innerContent` are always consistent and eliminating block validation errors.
+[wp-blockmarkup-mcp](https://github.com/pluginslab/wp-blockmarkup-mcp) is a local MCP server that extracts, validates, and indexes every Gutenberg block from WordPress core, WooCommerce, or any block-based plugin you work with. It gives AI tools like Claude Code a verified database of block schemas, attributes, and validated markup examples to query — instead of relying on training data that hallucinates block structures, invents attributes, and produces markup that triggers "Attempt Block Recovery" in the editor.
+
+[mcp-adapter-wordpress-remote](https://github.com/wordpress/mcp-adapter) bridges WordPress's Abilities API with the MCP specification, providing a standardized way for AI agents to interact with WordPress functionality. It includes HTTP and STDIO transport support, comprehensive error handling, and an extensible architecture for custom integrations.
 
 ---
 
 ## Installation
 
-1. Upload the plugin folder to `wp-content/plugins/block-design-abilities/`.
-2. Activate the plugin from the WordPress admin panel.
-3. The plugin automatically registers all abilities under the `block-design-abilities` category.
+1. Download .zip file from GitHub. (https://github.com/Arkenon/block-design-abilities)
+2. Upload .zip file via WordPress admin panel.
+3. Activate the plugin from the WordPress admin panel.
+4. The plugin automatically registers all abilities under the `block-design-abilities` category.
 
 ---
 
@@ -37,26 +40,30 @@ Multisite network compatible.
 
 This plugin exposes its abilities via MCP (Model Context Protocol), allowing any MCP-compatible client to interact with your WordPress site directly.
 
-### Prerequisite
-
-Install and activate the [wordpress-mcp-adapter](https://github.com/Automattic/wordpress-mcp-adapter) plugin alongside this one. It provides the MCP endpoint that clients connect to.
-
-### Client Configuration
-
-Add the following to your MCP client's configuration (Claude Code, Cursor, Codex, Antigravity, or any other MCP-compatible client):
+*You can get an example of an MCP client config file (such as Claude Code, Cursor, Codex, Antigravity, or any other MCP-compatible client):
 
 ```json
-"my-wp-site": {
-  "command": "npx",
-  "args": [
-    "-y",
-    "@automattic/mcp-wordpress-remote@latest"
-  ],
-  "env": {
-    "WP_API_URL": "http://my-wp-site.com/wp-json/mcp/mcp-adapter-default-server",
-    "LOG_FILE": "/path/to/logs/mcp-adapter.log",
-    "WP_API_USERNAME": "my-username",
-    "WP_API_PASSWORD": "my-password"
+{
+  "mcpServers": {
+    "wp-blockmarkup": {
+      "command": "npx",
+      "args": [
+        "wp-blockmarkup-mcp"
+      ]
+    },
+    "block-design-mcp": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@automattic/mcp-wordpress-remote@latest"
+      ],
+      "env": {
+        "WP_API_URL": "http://your-site.com/wp-json/mcp/mcp-adapter-default-server",
+        "LOG_FILE": "/path/to/logs/mcp-adapter.log",
+        "WP_API_USERNAME": "your-username",
+        "WP_API_PASSWORD": "your-password"
+      }
+    }
   }
 }
 ```
@@ -69,8 +76,6 @@ Add the following to your MCP client's configuration (Claude Code, Cursor, Codex
 | `WP_API_PASSWORD` | WordPress application password for the user above. |
 
 Once connected, all abilities registered under the `block-design-abilities` category are available to the client automatically.
-
----
 
 ## Overview
 
@@ -115,7 +120,7 @@ Templates are sorted alphabetically by slug. `post_id` is only present for templ
 
 #### `get-template`
 
-Returns a single template's content as a parsed block array.
+Returns a single template's serialized block markup.
 
 **Permission:** `edit_theme_options`
 
@@ -132,8 +137,7 @@ Returns a single template's content as a parsed block array.
 | `slug` | string | Template slug |
 | `title` | string | Template title |
 | `post_id` | int\|null | Database post ID, if a DB record exists |
-| `blocks` | array | Parsed block array |
-| `block_count` | int | Number of blocks |
+| `html` | string | Serialized block markup (WordPress comment format) |
 
 Whitespace-only (comment) blocks are automatically filtered out.
 
@@ -149,12 +153,9 @@ Saves or creates a block template. Provide either `post_id` or `slug`, not both.
 
 | Field | Type | Required | Description |
 |---|---|---|---|
-| `html` | string | Yes* | Raw HTML — automatically converted to blocks. Preferred; avoids block validation errors. |
-| `blocks` | array | Yes* | Block array. Use `html` instead to avoid validation errors. |
+| `html` | string | Yes | Serialized block markup (WordPress comment format) |
 | `post_id` | int | No | Existing template post ID (for updates) |
 | `slug` | string | No | Theme file template slug (to create a new DB record) |
-
-*Provide `html` or `blocks`, not both.
 
 - When `post_id` is provided: updates via `wp_update_post()`.
 - When `slug` is provided: creates a new database record from the theme file via `wp_insert_post()`.
@@ -213,7 +214,7 @@ Returns a paginated list of posts and pages.
 
 #### `get-post`
 
-Returns a single post or page's content as a parsed block array.
+Returns a single post or page's serialized block markup.
 
 **Permission:** `edit_posts`
 
@@ -234,8 +235,7 @@ Only supports `post` and `page` types; templates cannot be retrieved via this ab
 | `title` | string | Title |
 | `post_type` | string | Content type |
 | `url` | string | Front-end URL |
-| `blocks` | array | Parsed block array |
-| `block_count` | int | Number of blocks |
+| `html` | string | Serialized block markup (WordPress comment format) |
 
 ---
 
@@ -250,11 +250,8 @@ Saves updated block content to a post or page.
 | Field | Type | Required | Description |
 |---|---|---|---|
 | `post_id` | int | Yes | Post ID to update |
-| `html` | string | Yes* | Raw HTML — automatically converted to blocks. Preferred; avoids block validation errors. |
-| `blocks` | array | Yes* | New block array. Use `html` instead to avoid validation errors. |
+| `html` | string | Yes | Serialized block markup (WordPress comment format) |
 | `title` | string | No | New title |
-
-*Provide `html` or `blocks`, not both.
 
 **Returned Fields:**
 
@@ -323,11 +320,11 @@ Returns a single pattern's content as a parsed block array.
 |---|---|---|
 | `source` | string | Source type |
 | `slug` | string | Pattern slug |
+| `title` | string | Pattern title |
 | `post_id` | int\|null | Database post ID |
 | `sync_status` | string\|null | Sync status |
 | `is_editable` | bool | Whether the pattern can be edited |
-| `blocks` | array | Parsed block array |
-| `block_count` | int | Number of blocks |
+| `html` | string | Serialized block markup (WordPress comment format) |
 
 ---
 
@@ -342,11 +339,8 @@ Saves updated block content to a database pattern. Only `wp_block` posts are edi
 | Field | Type | Required | Description |
 |---|---|---|---|
 | `post_id` | int | Yes | `wp_block` post ID |
-| `html` | string | Yes* | Raw HTML — automatically converted to blocks. Preferred; avoids block validation errors. |
-| `blocks` | array | Yes* | New block array. Use `html` instead to avoid validation errors. |
+| `html` | string | Yes | Serialized block markup (WordPress comment format) |
 | `title` | string | No | New title |
-
-*Provide `html` or `blocks`, not both.
 
 **Returned Fields:**
 
@@ -386,7 +380,7 @@ Categories from the original pattern are automatically assigned to the new post.
 | `slug` | string | New pattern slug |
 | `sync_status` | string | Sync status |
 | `original_slug` | string | Original registry slug |
-| `serialized_content` | string | Serialized block content |
+| `html` | string | Serialized block markup (WordPress comment format) |
 | `error` | string\|null | Error message |
 
 ---
@@ -402,13 +396,10 @@ Creates a new block pattern from scratch.
 | Field | Type | Required | Description |
 |---|---|---|---|
 | `title` | string | Yes | Pattern title |
-| `html` | string | Yes* | Raw HTML — automatically converted to blocks. Preferred; avoids block validation errors. |
-| `blocks` | array | Yes* | Block array. Use `html` instead to avoid validation errors. |
+| `html` | string | Yes | Serialized block markup (WordPress comment format) |
 | `description` | string | No | Pattern description |
 | `categories` | array | No | List of category slugs |
 | `sync_status` | string | No | `"synced"` or `"unsynced"` (default: `"unsynced"`) |
-
-*Provide `html` or `blocks`, not both.
 
 Category slugs that do not exist are automatically created in the `wp_pattern_category` taxonomy.
 
@@ -422,7 +413,7 @@ Category slugs that do not exist are automatically created in the `wp_pattern_ca
 | `slug` | string | Pattern slug |
 | `sync_status` | string | Sync status |
 | `categories` | array | Assigned categories |
-| `serialized_content` | string | Serialized block content |
+| `html` | string | Serialized block markup (WordPress comment format) |
 | `error` | string\|null | Error message |
 
 ---
@@ -495,14 +486,11 @@ Merges the provided settings and/or styles into the active theme's user override
 
 ### Block Processing
 
-| Operation | Function / Library |
-|---|---|
-| Raw HTML → Block Array | `html_to_blocks_raw_handler()` — [html-to-blocks-converter](https://github.com/chubes4/html-to-blocks-converter) |
-| Serialized content → Block Array | `parse_blocks()` |
-| Block Array → Serialized content | `serialize_block()` |
-| Filter empty blocks | `blockName === null` check |
+The plugin works comfortable with [wp-blockmarkup-mcp](https://github.com/pluginslab/wp-blockmarkup-mcp). It uses it to validate and process block markup.
 
-When the `html` parameter is provided to any write ability, `html_to_blocks_raw_handler()` converts the raw HTML into a properly structured block array before serialization. This ensures `attrs` and `innerContent` are always consistent, eliminating block validation errors in the editor.
+The plugin works comfortable with [wordpress-mcp](https://github.com/Automattic/wordpress-mcp). It uses it to fetch and update posts, pages, templates, theme.json, etc.
+
+Abilities in the plugin, serialize block markup before sending it to the client and save it into the database as a string (block markup).
 
 ### Permission Requirements
 
@@ -549,7 +537,8 @@ block-design-abilities/
 ---
 
 ## Credit
-[chubes4/html-to-blocks-converter](https://github.com/chubes4/html-to-blocks-converter)
+[pluginslab/wp-blockmarkup-mcp](https://github.com/pluginslab/wp-blockmarkup-mcp)
+[wordpress/mcp-adapter](https://github.com/wordpress/mcp-adapter)
 
 ## License
 

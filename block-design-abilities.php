@@ -18,10 +18,6 @@
 
 defined('ABSPATH') || exit;
 
-if (file_exists(plugin_dir_path(__FILE__) . 'vendor/autoload.php')) {
-    require_once plugin_dir_path(__FILE__) . 'vendor/autoload.php';
-}
-
 require_once plugin_dir_path(__FILE__) . 'includes/class-template-abilities.php';
 require_once plugin_dir_path(__FILE__) . 'includes/class-post-abilities.php';
 require_once plugin_dir_path(__FILE__) . 'includes/global-styles-abilities.php';

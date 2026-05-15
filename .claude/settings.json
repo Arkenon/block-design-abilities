@@ -1,0 +1,23 @@
+{
+  "mcpServers": {
+    "wp-blockmarkup": {
+      "command": "npx",
+      "args": [
+        "wp-blockmarkup-mcp"
+      ]
+    },
+    "block-design-mcp": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@automattic/mcp-wordpress-remote@latest"
+      ],
+      "env": {
+        "WP_API_URL": "http://block-design-abilities.test/wp-json/mcp/mcp-adapter-default-server",
+        "LOG_FILE": "/path/to/logs/mcp-adapter.log",
+        "WP_API_USERNAME": "bdesign",
+        "WP_API_PASSWORD": "VOXN 2kKf CUI0 7k8T Oxy3 NMH3"
+      }
+    }
+  }
+}

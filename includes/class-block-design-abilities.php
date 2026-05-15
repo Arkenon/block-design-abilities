@@ -27,25 +27,29 @@ class Block_Design_Abilities
     /**
      * Resolves block array from ability input.
      *
-     * When 'html' is provided, converts HTML to blocks via html-to-blocks-converter
-     * (eliminates innerHTML vs attributes mismatches that cause block validation errors).
-     * Falls back to 'blocks' array if 'html' is absent.
+     * When 'html' is provided, parses serialized block markup (WordPress block comment format)
+     * using WordPress core parse_blocks(). Falls back to 'blocks' array if 'html' is absent.
      *
      * @param array $input Ability input parameters.
      * @return array|WP_Error Block array on success, WP_Error on failure.
      */
-    public static function resolve_blocks( array $input ) {
-        if ( ! empty( $input['html'] ) ) {
-            if ( ! function_exists( 'html_to_blocks_raw_handler' ) ) {
-                return new WP_Error( 'missing_dependency', __( 'html-to-blocks-converter plugin must be installed and active to use HTML input.', 'block-design-abilities' ) );
+    public static function resolve_blocks(array $input)
+    {
+        if (! empty($input['html'])) {
+            $blocks = parse_blocks($input['html']);
+            $blocks = array_values(array_filter($blocks, function ($block) {
+                return ! empty($block['blockName']);
+            }));
+            if (empty($blocks)) {
+                return new WP_Error('parse_failed', __('No valid blocks found in the provided block markup.', 'block-design-abilities'));
             }
-            return html_to_blocks_raw_handler( array( 'HTML' => $input['html'] ) );
+            return $blocks;
         }
 
-        if ( ! empty( $input['blocks'] ) ) {
+        if (! empty($input['blocks'])) {
             return $input['blocks'];
         }
 
-        return new WP_Error( 'missing_input', __( 'Either html or blocks must be provided.', 'block-design-abilities' ) );
+        return new WP_Error('missing_input', __('Either html or blocks must be provided.', 'block-design-abilities'));
     }
 }
