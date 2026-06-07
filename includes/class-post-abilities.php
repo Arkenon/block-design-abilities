@@ -23,6 +23,7 @@ class Block_Design_Abilities_Posts
     {
         add_action('wp_abilities_api_init', array($this, 'register_list_posts_ability'));
         add_action('wp_abilities_api_init', array($this, 'register_get_post_ability'));
+        add_action('wp_abilities_api_init', array($this, 'register_create_post_ability'));
         add_action('wp_abilities_api_init', array($this, 'register_update_post_ability'));
     }
 
@@ -295,6 +296,165 @@ class Block_Design_Abilities_Posts
             'post_type' => $post->post_type,
             'url'       => get_permalink($post->ID),
             'html'      => $post->post_content,
+        );
+    }
+
+    /**
+     * Registers the 'block-design-abilities/create-post' ability to the Abilities API.
+     *
+     * The ability accepts title (required), and html, post_type, post_status
+     * (optional) parameters. Creates a new post or page and returns its id and url.
+     * Only post and page types can be created; create-template should be used
+     * for template types.
+     *
+     * @return void
+     */
+    public function register_create_post_ability()
+    {
+        wp_register_ability(
+            'block-design-abilities/create-post',
+            array(
+                'label'       => __('Create Post or Page', 'block-design-abilities'),
+                'description' => __('Creates a new post/page. Provide title and optionally html. The html is converted to blocks server-side, avoiding innerHTML/attributes validation errors. Returns the new post_id for use with get-post/update-post.', 'block-design-abilities'),
+                'category'    => 'block-design-abilities',
+
+                'input_schema' => array(
+                    'type'       => 'object',
+                    'required'   => array('title'),
+                    'properties' => array(
+
+                        'title' => array(
+                            'type'        => 'string',
+                            'description' => __('The title of the new post/page.', 'block-design-abilities'),
+                        ),
+
+                        'html' => array(
+                            'type'        => 'string',
+                            'description' => __('Optional. Serialized block markup (WordPress block comment format) for the initial content. Converted to blocks server-side.', 'block-design-abilities'),
+                        ),
+
+                        'post_type' => array(
+                            'type'        => 'string',
+                            'enum'        => array('post', 'page'),
+                            'description' => __('"post" (default) or "page".', 'block-design-abilities'),
+                        ),
+
+                        'post_status' => array(
+                            'type'        => 'string',
+                            'enum'        => array('draft', 'publish', 'pending', 'private'),
+                            'description' => __('Publication status. Default "draft".', 'block-design-abilities'),
+                        ),
+
+                    ),
+                ),
+
+                'output_schema' => array(
+                    'type'       => 'object',
+                    'properties' => array(
+                        'success'   => array('type' => 'boolean'),
+                        'post_id'   => array('type' => 'integer'),
+                        'post_type' => array('type' => 'string'),
+                        'status'    => array('type' => 'string'),
+                        'url'       => array('type' => 'string'),
+                        'error'     => array('type' => 'string'),
+                    ),
+                ),
+
+                'execute_callback'    => array($this, 'create_post'),
+                'permission_callback' => function () {
+                    return current_user_can('edit_posts');
+                },
+                'meta' => array('mcp' => array('public' => true)),
+            )
+        );
+    }
+
+    /**
+     * Creates a new post or page.
+     *
+     * If html is provided it is converted to blocks via
+     * Block_Design_Abilities::resolve_blocks(), then re-serialized and saved as
+     * post_content; an empty post is created otherwise. post_type defaults to
+     * "post" and post_status defaults to "draft".
+     *
+     * @param array{
+     *     title:        string,
+     *     html?:        string,
+     *     post_type?:   string,
+     *     post_status?: string,
+     * } $input Ability input parameters.
+     *
+     * @return array{
+     *     success:    bool,
+     *     post_id?:   int,
+     *     post_type?: string,
+     *     status?:    string,
+     *     url?:       string,
+     *     error?:     string,
+     * }
+     */
+    public function create_post(array $input): array
+    {
+        $title = isset($input['title']) ? sanitize_text_field($input['title']) : '';
+
+        if (empty($title)) {
+            return array(
+                'success' => false,
+                'error'   => __('A non-empty title is required to create a post/page.', 'block-design-abilities'),
+            );
+        }
+
+        $post_type   = (isset($input['post_type']) && in_array($input['post_type'], array('post', 'page'), true))
+            ? $input['post_type']
+            : 'post';
+        $post_status = (isset($input['post_status']) && in_array($input['post_status'], array('draft', 'publish', 'pending', 'private'), true))
+            ? $input['post_status']
+            : 'draft';
+
+        $serialized_content = '';
+
+        // Content is optional; only resolve/serialize blocks when html is provided.
+        if (! empty($input['html'])) {
+            $blocks = Block_Design_Abilities::resolve_blocks($input);
+            if (is_wp_error($blocks)) {
+                return array('success' => false, 'error' => $blocks->get_error_message());
+            }
+
+            foreach ($blocks as $block) {
+                $serialized_content .= serialize_block($block);
+            }
+
+            if (empty(trim($serialized_content))) {
+                return array(
+                    'success' => false,
+                    'error'   => __('Block serialization failed. Check your block structure.', 'block-design-abilities'),
+                );
+            }
+        }
+
+        $result = wp_insert_post(
+            array(
+                'post_title'   => $title,
+                'post_content' => $serialized_content,
+                'post_type'    => $post_type,
+                'post_status'  => $post_status,
+            ),
+            true
+        );
+
+        if (is_wp_error($result)) {
+            return array(
+                'success' => false,
+                'error'   => $result->get_error_message(),
+            );
+        }
+
+        return array(
+            'success'   => true,
+            'post_id'   => (int) $result,
+            'post_type' => $post_type,
+            'status'    => $post_status,
+            'url'       => get_permalink($result),
         );
     }
 
