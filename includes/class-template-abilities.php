@@ -47,8 +47,7 @@ class Block_Design_Abilities_Templates
                 'category'    => 'block-design-abilities',
 
                 'input_schema' => array(
-                    'type'       => 'object',
-                    'properties' => array(),
+                    'type'       => 'object'
                 ),
 
                 'output_schema' => array(
@@ -71,7 +70,7 @@ class Block_Design_Abilities_Templates
                                     'title' => array(
                                         'type'        => 'string',
                                         'description' => __('Human-readable title of the template.', 'block-design-abilities'),
-                                    ),                                
+                                    ),
                                     'post_id' => array(
                                         'type'        => 'integer',
                                         'description' => __('Database post ID. (If the template is saved to the database) Use this when calling update-template.', 'block-design-abilities'),
